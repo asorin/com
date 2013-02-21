@@ -9,6 +9,7 @@ from collections import defaultdict
 import argparse
 import logging
 import sys
+import yaml
 
 from dcom.source import *
 from dcom.network_ig import NetworkIG
@@ -26,6 +27,8 @@ def parse_args(args):
                                      formatter_class=RawTextHelpFormatter)
     parser.add_argument('-v', '--version', action='version',
             version='version %s' % __version__)
+    parser.add_argument('-c', '--config', action='store', default="conf/dcom.yml",
+            help=('configuration file'))
     parser.add_argument('-l', '--links', action='store', required=True,
             help=('the links file containing the list of link'))
     parser.add_argument('-n1', '--node1', action='store', default=None,
@@ -50,6 +53,15 @@ def parse_args(args):
             help=('node id'))
 
     return parser.parse_args(args)
+
+
+def read_config(options):
+    """ Read the YAML configuration file and return a dict """
+    config_file = options['config']
+    
+    with open(config_file) as f:
+        config = yaml.load(f)
+    options.update(config)
 
 
 def do_metrics(options):
@@ -111,13 +123,15 @@ def main(args):
     options['partition_ntype'] = 1
     options['partition_threshold'] = 1
     
+    read_config(options)
+    
     try:
         src = NetSource(options['delimiter'], options['links'],
                                 options['node1'], options['node2'],
                                 options['partition'])
         print "Feed %d links into network" % (len(src.links))
         if options['library']=='x':
-            net = NetworkX(options['action']=="metrics", options['relative'], int(options['period']))
+            net = NetworkX(options)
         elif options['library']=='ig':
             net = NetworkIG(int(options['period']))
         else:

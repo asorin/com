@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from datetime import datetime
 
 class CommunitySourceError(Exception):
     def __init__(self, value):

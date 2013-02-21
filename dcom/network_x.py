@@ -4,12 +4,15 @@ from networkx.algorithms import bipartite
 import louvain
 import scipy
 
+from tools import sum_and_count
+from tools import get_avg_map
+
 class NetworkX():
 
-    def __init__(self, dometrics=True, relative=False, aggrPeriod = 86400):
+    def __init__(self, options):
         self.G = nx.Graph()
-        if dometrics:
-            self.metrics = MetricsRelative(self, aggrPeriod) if relative else Metrics(self, aggrPeriod)
+        if options['action']=="metrics":
+            self.metrics = MetricsRelative(self, options) if options['relative'] else Metrics(self, options)
         else:
             self.metrics = None
         self.partition = None
@@ -82,8 +85,8 @@ class NetworkX():
         return len(nodes)
         
     def getAvgLifetime(self):
-        nodeLf0 = list(d["lifetime"] for n,d in self.G.nodes(data=True) if d["type"]==0)
-        nodeLf1 = list(d["lifetime"] for n,d in self.G.nodes(data=True) if d["type"]==1)
+        nodeLf0 = list(d["lifetime"] for _,d in self.G.nodes(data=True) if d["type"]==0)
+        nodeLf1 = list(d["lifetime"] for _,d in self.G.nodes(data=True) if d["type"]==1)
         return sum(nodeLf0)/len(nodeLf0), sum(nodeLf1)/len(nodeLf1)
     
     def hasPath(self, nodeA, nodeB):
@@ -104,7 +107,12 @@ class NetworkX():
         else:
             self.G.node[node]["lifetime"] = ts - self.G.node[node]["start"]
     
-    def getAvgNeighborDegree(self, ntype):
+    """
+    Returns two maps: 
+        map of nodes with average degree of their neighbors
+        map of correlation between degree of nodes and average degree of their neighbors
+    """
+    def getAvgNeighbourDegree(self, ntype):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
         avgDegreeMap = dict()
         avgDegreeCorrMap = dict()
@@ -112,10 +120,14 @@ class NetworkX():
             d = self.G.degree(node)
             degrees = list(self.G.degree(n) for n in self.G.neighbors(node))
             avgDegreeMap[node] = scipy.mean(degrees)
-            _sum_and_count(avgDegreeCorrMap, d, sum(degrees), len(degrees))
+            sum_and_count(avgDegreeCorrMap, d, sum(degrees), len(degrees))
                 
-        return avgDegreeMap, _get_avg_map(avgDegreeCorrMap)
-            
+        return avgDegreeMap, get_avg_map(avgDegreeCorrMap)
+    
+    """
+    Counts the number of neighbour hubs and singles for each node
+    Returns map of nodes-hubs, nodes-hubs ratio, nodes-singles, nodes-singles ratio
+    """
     def getCountsHubsSingles(self, ntype, hubThreshold):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
         hubsMap = dict()
@@ -139,6 +151,9 @@ class NetworkX():
             
         return hubsMap, hubsPctMap, singlesMap, singlesPctMap
 
+    """ 
+    Get correlation of hubs and singles count with node degree
+    """
     def getDegreeCorrHubsSingles(self, ntype, hubThreshold):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
         hubsDegreeCorrMap = dict()
@@ -154,12 +169,15 @@ class NetworkX():
                     hubs += 1
                 elif degreeNeighbor == 1:
                     singles += 1
-            _sum_and_count(hubsDegreeCorrMap, degreeNode, hubs, degreeNode)
-            _sum_and_count(singlesDegreeCorrMap, degreeNode, singles, degreeNode)
+            sum_and_count(hubsDegreeCorrMap, degreeNode, hubs, degreeNode)
+            sum_and_count(singlesDegreeCorrMap, degreeNode, singles, degreeNode)
         
-        return _get_avg_map(hubsDegreeCorrMap), _get_avg_map(singlesDegreeCorrMap) 
+        return get_avg_map(hubsDegreeCorrMap), get_avg_map(singlesDegreeCorrMap) 
                 
 
+    """
+    Get hub and single links ratio
+    """
     def getEdgesRatio(self, hubThreshold):
         hublinks = 0.0
         singlelinks = 0.0
@@ -184,15 +202,3 @@ class NetworkX():
         else:
             nx.write_gml(self.getNeighbourhood(int(node)), fname)
         
-def _sum_and_count(vmap, key, val, count=1):
-    (sumval, sumcount) = (0, 0)
-    if key in vmap:
-        (sumval, sumcount) = vmap[key]
-
-    vmap[key] = (sumval+val, sumcount+count)
-
-def _get_avg_map(vmap, rnd=1):
-    for k, v in vmap.iteritems():
-        vmap[k] = 1.0*v[0]/v[1]
-    return vmap
-

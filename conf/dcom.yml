@@ -1,0 +1,79 @@
+#metrics-columns: date,nodes-count,new-nodes,links-count,avg-node-degree,avg-node-strength,avg-node-lifetime,avg-new-link-shortest-path,degree-distribution
+metrics-columns: date,avg-clust-coef
+
+store-modules: nodes-degrees,degree-links-count,clustering-coefficient
+#neighbour-hubs-singles,avg-neighbour-degree
+
+metrics-modules:
+    nodes-degrees:
+        title: Nodes degree map
+        
+    neighbour-hubs-singles:
+        title: Map of hubs and singles of node neighbours
+
+    degree-links-count:
+        title: Map of degrees and new links count
+
+    avg-neighbour-degree:
+        title: Maps of nodes-degrees and avg neighbour degree
+        
+    clustering-coefficient:
+        title: Clustering coefficient map
+         
+    date:
+        title: Date
+        
+    nodes-count:
+        title: Nodes count 1,Nodes count 2
+    
+    new-nodes:
+        title: New nodes 1,New nodes 2
+    
+    avg-node-degree:
+        title: Avg node degree 1,Avg node degree 2
+        depends: nodes-degrees
+
+    avg-node-strength:
+        title: Avg node strength 1,Avg node strength 2
+    
+    avg-node-lifetime:
+        title: Avg node lifetime 1,Avg node lifetime 2
+    
+    avg-new-link-shortest-path:
+        title: Avg new link shortest path
+    
+    links-count:
+        title: Link events,Reinforced links 
+    
+    degree-distribution:
+        title: Degree distribution 1,Degree distribution 2
+        depends: nodes-degrees
+
+    hubs-singles-distribution:
+        title: Node hubs dist 1,Node hubs dist 2,Node singles dist 1,Node singles dist 2
+        depends: neighbour-hubs-singles
+        
+    degree-links-count-correlation:
+        title: Degree-links corr 1,Degree-links corr 2,Degree-new links corr 1,Degree-new links corr 2,Degree-reinf links corr 1,Degree-reinf links corr 2
+        depends: degree-links-count
+        
+    avg-neighbour-degree-distribution:
+        title: Avg neighbour degree distribution 1,Avg neighbour degree distribution 2
+        depends: avg-neighbour-degree
+
+    degree-avg-neighbour-degree-correlation:
+        title: Degree-avg degree corr 1,Degree-avg degree corr 2
+        depends: avg-neighbour-degree
+        
+    clust-coef-distribution:
+        title: Clust coef distribution 1,Clust coef distribution 2
+        depends: nodes-degrees,clustering-coefficient
+    
+    degree-clust-coef-correlation:
+        title: Degree clust coef correlation 1,Degree clust coef correlation 2
+        depends: nodes-degrees,clustering-coefficient
+        
+    avg-clust-coef:
+        title: Avg clustering coef 1,Avg clustering coef 2
+        depends: clustering-coefficient
+        
