@@ -8,6 +8,8 @@ def increment(key, vmap, val=1):
     vmap[key] += val
 
 def avg_values(vmap):
+    if not vmap:
+        return None
     return 0 if len(vmap)==0 else round(sum(vmap.values()) / len(vmap), 3)
 
 def check_and_increment(key, vmap, val=1):
@@ -19,6 +21,9 @@ def add_to_list(key, lmap, val):
     if not key in lmap:
         lmap[key] = []
     lmap[key].append(val)
+
+def return_from_map(vmap, key):
+    return vmap[key] if key in vmap else None
     
 def distribution(vmap, binsz=1, maxv=0):
     d = vmap.values()

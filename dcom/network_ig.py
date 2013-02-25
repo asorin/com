@@ -1,11 +1,11 @@
-from metrics import Metrics
+from metrics import MetricsAbsolute
 import igraph
 
 class NetworkIG():
 
     def __init__(self, aggrPeriod = 86400):
         self.G = igraph.Graph()
-        self.metrics = Metrics(self, aggrPeriod)
+        self.metrics = MetricsAbsolute(self, aggrPeriod)
         self.partition = None
         self.vindex = dict()
         self.elist = list()

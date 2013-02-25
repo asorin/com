@@ -1,5 +1,5 @@
 import networkx as nx
-from metrics import Metrics, MetricsRelative
+from metrics import MetricsAbsolute, MetricsRelative
 from networkx.algorithms import bipartite
 import louvain
 import scipy
@@ -12,7 +12,7 @@ class NetworkX():
     def __init__(self, options):
         self.G = nx.Graph()
         if options['action']=="metrics":
-            self.metrics = MetricsRelative(self, options) if options['relative'] else Metrics(self, options)
+            self.metrics = MetricsRelative(self, options) if options['relative'] else MetricsAbsolute(self, options)
         else:
             self.metrics = None
         self.partition = None

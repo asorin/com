@@ -20,7 +20,12 @@ class MetricsModule(object):
         """
 
     @abc.abstractmethod
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        """Update module with a new link
+        """
+
+    @abc.abstractmethod
+    def update_node(self, nodeA, nodeB, ts):
         """Update module with a new link
         """
 
@@ -53,8 +58,14 @@ class NodesDegrees(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
         pass
+
+    def update_node(self, node, ntype, ts):
+        if not ts in self.nodesDegrees[ntype]:
+            self.nodesDegrees[ntype][ts] = dict()
+            
+        self.nodesDegrees[ntype][ts][node] = self.net.getDegree(node) if self.net.hasNode(node) else 1 
 
     def update_from_network(self, ts):
         if not ts in self.nodesDegrees[0]:
@@ -63,7 +74,32 @@ class NodesDegrees(MetricsModule):
             self.nodesDegrees[1][ts] = d2
 
     def get_values(self, ts):
-        return [self.nodesDegrees[0][ts], self.nodesDegrees[1][ts]]
+        return [return_from_map(self.nodesDegrees[0], ts), return_from_map(self.nodesDegrees[1], ts)]
+
+
+class NodesStrength(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.nodesStrength = [dict(), dict()]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        self.update_node(nodeA, 0, ts)
+        self.update_node(nodeB, 1, ts)
+
+    def update_node(self, node, ntype, ts):
+        if not ts in self.nodesStrength[ntype]:
+            self.nodesStrength[ntype][ts] = dict()
+        check_and_increment(node, self.nodesStrength[ntype][ts])
+
+    def update_from_network(self, ts):
+        pass
+
+    def get_values(self, ts):
+        return [return_from_map(self.nodesStrength[0], ts), return_from_map(self.nodesStrength[1], ts)]
 
 
 class NeighbourHubsSingles(MetricsModule):
@@ -78,7 +114,10 @@ class NeighbourHubsSingles(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -110,7 +149,7 @@ class DegreeLinksCount(MetricsModule):
         self.degreeReinfLinksCount[0][ts] = dict()
         self.degreeReinfLinksCount[1][ts] = dict()
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
         hasNodeA = self.net.hasNode(nodeA)
         hasNodeB = self.net.hasNode(nodeB)
         
@@ -127,6 +166,9 @@ class DegreeLinksCount(MetricsModule):
                 check_and_increment(self.net.getDegree(nodeA), self.degreeNewLinksCount[0][ts])
             if hasNodeB:
                 check_and_increment(self.net.getDegree(nodeB), self.degreeNewLinksCount[1][ts])
+
+    def update_node(self, node, ntype, ts):
+        pass
 
     def update_from_network(self, ts):
         pass
@@ -147,7 +189,7 @@ class AvgNeighbourDegree(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
         pass
 
     def update_from_network(self, ts):
@@ -157,6 +199,9 @@ class AvgNeighbourDegree(MetricsModule):
         avgDegree1, avgDegreeCorr1 = self.net.getAvgNeighbourDegree(1)
         self.nodeAvgDegreeNeigh[1][ts] = avgDegree1
         self.nodeAvgDegreeCorr[1][ts] = avgDegreeCorr1
+
+    def update_node(self, node, ntype, ts):
+        pass
 
     def get_values(self, ts):
         if not ts in self.nodeAvgDegreeNeigh[0]:
@@ -175,7 +220,10 @@ class ClusteringCoefficient(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -203,11 +251,14 @@ class NewNodes(MetricsModule):
         self.newNodes[0][ts] = 0
         self.newNodes[1][ts] = 0
         
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
         if not self.net.hasNode(nodeA):
             increment(ts, self.newNodes[0])
         if not self.net.hasNode(nodeB):
             increment(ts, self.newNodes[1])
+
+    def update_node(self, node, ntype, ts):
+        pass
 
     def update_from_network(self, ts):
         pass
@@ -227,7 +278,10 @@ class Date(MetricsModule):
     def reset(self, ts):
         pass
         
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -235,6 +289,28 @@ class Date(MetricsModule):
     
     def get_values(self, ts):
         return [datetime.utcfromtimestamp(ts*self.aggrPeriod)]
+
+
+class DateRelative(MetricsModule):
+    
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.aggrPeriod = conf['period']
+    
+    def reset(self, ts):
+        pass
+        
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        pass
+    
+    def get_values(self, ts):
+        return [ts]
 
 
 class NodesCount(MetricsModule):
@@ -247,7 +323,10 @@ class NodesCount(MetricsModule):
         self.nodesCount[0][ts] = 0
         self.nodesCount[1][ts] = 0
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -270,7 +349,10 @@ class AvgNodeDegree(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -285,24 +367,23 @@ class AvgNodesStrength(MetricsModule):
 
     def __init__(self, conf):
         MetricsModule.__init__(self, conf)
-        self.nodesStrength = [dict(), dict()]
+        self.strength = conf['nodes-strength']
 
     def reset(self, ts):
-        self.nodesStrength[0][ts] = dict()
-        self.nodesStrength[1][ts] = dict()
+        pass
 
-    def update(self, nodeA, nodeB, ts):
-        check_and_increment(nodeA, self.nodesStrength[0][ts])
-        check_and_increment(nodeB, self.nodesStrength[1][ts])
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
 
     def update_from_network(self, ts):
         pass
 
     def get_values(self, ts):
-        if ts in self.nodesStrength[0]:
-            return [avg_values(self.nodesStrength[0][ts]), avg_values(self.nodesStrength[1][ts])]
-        else:
-            return []
+        [d1, d2] = self.strength.get_values(ts)
+        return [avg_values(d1), avg_values(d2)]
 
 
 class AvgNodeLifetime(MetricsModule):
@@ -316,7 +397,10 @@ class AvgNodeLifetime(MetricsModule):
         self.nodeAvgLifetime[0][ts] = 0
         self.nodeAvgLifetime[1][ts] = 0
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -342,10 +426,13 @@ class LinksCount(MetricsModule):
         self.linkCount[ts] = 0
         self.reinfLinkCount[ts] = 0
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
         increment(ts, self.linkCount)
         if self.net.hasEdge(nodeA, nodeB):
             increment(ts, self.reinfLinkCount)
+
+    def update_node(self, node, ntype, ts):
+        pass
 
     def update_from_network(self, ts):
         pass
@@ -366,9 +453,12 @@ class AvgNewLinkShortestPath(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
         if self.net.hasNode(nodeA) and self.net.hasNode(nodeB) and self.net.hasPath(nodeA, nodeB):
             add_to_list(ts, self.linkShortestPath, self.net.getShortestPath(nodeA, nodeB))
+
+    def update_node(self, node, ntype, ts):
+        pass
 
     def update_from_network(self, ts):
         pass
@@ -388,7 +478,10 @@ class DegreeDistribution(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -408,7 +501,10 @@ class HubsSinglesDistribution(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -428,7 +524,10 @@ class DegreeLinksCountCorrelation(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -450,7 +549,10 @@ class AvgNeighbourDegreeDistribution(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -470,7 +572,10 @@ class DegreeAvgNeighbourDegreeCorrelation(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -490,7 +595,10 @@ class AvgClustCoef(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -510,7 +618,10 @@ class ClustCoefDistribution(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -531,7 +642,10 @@ class DegreeClustCoefCorrelation(MetricsModule):
     def reset(self, ts):
         pass
 
-    def update(self, nodeA, nodeB, ts):
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
@@ -554,12 +668,14 @@ class DegreeClustCoefCorrelation(MetricsModule):
 
 metrics_modules = {# store modules
                    'nodes-degrees' : NodesDegrees,
+                   'nodes-strength' : NodesStrength,
                    'neighbour-hubs-singles' : NeighbourHubsSingles,
                    'degree-links-count' : DegreeLinksCount,
                    'avg-neighbour-degree' : AvgNeighbourDegree,
                    'clustering-coefficient' : ClusteringCoefficient, 
                    # metrics modules
                    'date' : Date,
+                   'date-relative' : DateRelative,
                    'new-nodes' : NewNodes,
                    'nodes-count' : NodesCount,
                    'avg-node-degree' : AvgNodeDegree,
@@ -588,7 +704,9 @@ metrics_modules = {# store modules
 #        self.[0][ts] = 
 #        self.[1][ts] = 
 #
-#    def update(self, nodeA, nodeB, ts):
+#    def update_link(self, nodeA, nodeB, ts):
+#
+#    def update_node(self, node, ntype, ts):
 #
 #    def update_from_network(self, ts):
 #

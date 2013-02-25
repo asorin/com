@@ -1,12 +1,24 @@
-#metrics-columns: date,nodes-count,new-nodes,links-count,avg-node-degree,avg-node-strength,avg-node-lifetime,avg-new-link-shortest-path,degree-distribution
-metrics-columns: date,avg-clust-coef
+# Absolute metrics columns
+metrics-columns: date,nodes-count,new-nodes,links-count,avg-node-degree,avg-node-strength,avg-node-lifetime,avg-new-link-shortest-path,degree-distribution
 
-store-modules: nodes-degrees,degree-links-count,clustering-coefficient
+
+# Relative metrics columns
+#metrics-columns: date-relative,avg-node-degree,avg-node-strength
+
+
+# Storing modules
+store-modules: nodes-degrees,nodes-strength,degree-links-count
+#,clustering-coefficient
 #neighbour-hubs-singles,avg-neighbour-degree
 
+
+# Declaration of all modules
 metrics-modules:
     nodes-degrees:
         title: Nodes degree map
+        
+    nodes-strength:
+        title: Nodes strength map
         
     neighbour-hubs-singles:
         title: Map of hubs and singles of node neighbours
@@ -23,6 +35,9 @@ metrics-modules:
     date:
         title: Date
         
+    date-relative:
+        title: Lifetime
+        
     nodes-count:
         title: Nodes count 1,Nodes count 2
     
@@ -35,6 +50,7 @@ metrics-modules:
 
     avg-node-strength:
         title: Avg node strength 1,Avg node strength 2
+        depends: nodes-strength
     
     avg-node-lifetime:
         title: Avg node lifetime 1,Avg node lifetime 2
