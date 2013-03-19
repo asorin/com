@@ -3,9 +3,23 @@ from metrics import MetricsAbsolute, MetricsRelative
 from networkx.algorithms import bipartite
 import louvain
 import scipy
+import math
+import itertools
+import time
 
 from tools import sum_and_count
 from tools import get_avg_map
+from dcom.tools import check_and_increment
+
+def print_timing(func):
+    def wrapper(*arg):
+        t1 = time.time()
+        res = func(*arg)
+        t2 = time.time()
+        print '%s took %0.3f ms' % (func.func_name, (t2-t1)*1000.0)
+        return res
+    return wrapper
+
 
 class NetworkX():
 
@@ -94,10 +108,6 @@ class NetworkX():
     
     def getShortestPath(self, nodeA, nodeB):
         return nx.shortest_path_length(self.G, nodeA, nodeB)
-    
-    def getClustCoef(self, ntype):
-        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
-        return bipartite.clustering(self.G, nodes, mode='dot')
     
     def __updateNode(self, node, ntype, ts, existed):
         if not existed:
@@ -194,11 +204,243 @@ class NetworkX():
         nodes.extend(self.G.neighbors(node))
         for n in self.G.neighbors(node):
             nodes.extend(self.G.neighbors(n))
+            for nn in self.G.neighbors(n):
+                nodes.extend(self.G.neighbors(nn))
         return self.G.subgraph(nodes)
     
-    def save(self, fname, node=None):
-        if node is None:
-            nx.write_gml(self.G, fname)
-        else:
-            nx.write_gml(self.getNeighbourhood(int(node)), fname)
+    def save(self, fname, node=None, outFormat="gml"):
+        towrite = self.G if node is None else self.getNeighbourhood(int(node))
+        if outFormat=="gml":
+            nx.write_gml(towrite, fname)
+        elif outFormat=="edgelist":
+            nx.write_edgelist(towrite, fname, delimiter=' ')
         
+    def getClustCoef(self, ntype):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        clustMap = bipartite.clustering(self.G, nodes, mode='dot')
+        return clustMap
+    
+    def getLocalClustCoef(self, node):
+        return bipartite.clustering(self.G, [node], mode='dot')[node] if node in self.G else 0.0
+    
+    def getClustCoefOpsahlOriginal(self, ntype):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        num4Paths = {}
+        num4Cycles = {}
+        clustMap = {}
+        total4Paths, total4Cycles = 0, 0
+        for p1 in nodes:
+            for s1 in self.G.neighbors(p1): # 1-path
+                for p2 in self.G.neighbors(s1): # 2-path
+                    if p2 == p1:
+                        continue
+                    for s2 in self.G.neighbors(p2): # 3-path
+                        if s2 == s1:
+                            continue
+                        for p3 in self.G.neighbors(s2): # 4-path
+                            if p3 == p2 or p3 == p1:
+                                continue
+                            focalnode = p2
+                            total4Paths += 1
+                            check_and_increment(focalnode, num4Paths);
+                            # check for cycle
+                            isClosed = False
+                            for s3 in self.G.neighbors(p3): # 5-path
+                                if s3 == s2 or s3 == s1:
+                                    continue
+                                for p4 in self.G.neighbors(s3):
+                                    if p4 == p1:
+                                        isClosed = True
+                                        break
+                                if isClosed: # only needs to be one cycle for this 4-path
+                                    break
+                            if isClosed:
+                                total4Cycles += 1
+                                check_and_increment(focalnode, num4Cycles);
+                            
+        for n, paths in sorted(num4Paths.iteritems()):
+            cycles = num4Cycles[n] if n in num4Cycles else 0
+            clustMap[n] = round(float(cycles) / paths, 6)
+#            print "node", n, ":", paths, cycles, clustMap[n]
+        globalCoef = round(float(total4Cycles) / total4Paths, 6)
+        
+        return globalCoef, clustMap
+
+    @print_timing
+    def getClustCoefOpsahlAll(self, ntype):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+#        nodes = [4]
+        nbrsMap, coefMap, coefDegreeMap = {}, {}, {}
+        total4Paths, totalVal4Paths, total4Cycles, totalVal4Cycles = 0, 0.0, 0, 0.0
+        for node in sorted(nodes):
+            num4Paths, val4Paths, num4Cycles, val4Cycles = self.__getPathsAndCycles(node, nbrsMap)
+            total4Paths += num4Paths
+            totalVal4Paths += val4Paths
+            total4Cycles += num4Cycles
+            totalVal4Cycles += val4Cycles
+
+            if num4Paths>0:
+                coefMap[node] = round(float(num4Cycles) / num4Paths, 6)
+                coefDegreeMap[node] = round(float(val4Cycles) / val4Paths, 6)
+#                if (coefDegreeMap[node] >= coefMap[node]):
+                print "node", node, ":", num4Paths, round(val4Paths,0), num4Cycles, round(val4Cycles, 0), coefMap[node], coefDegreeMap[node]
+        
+        globalCoef = round(float(total4Cycles) / total4Paths, 6)
+        globalDegreeCoef = round(float(totalVal4Cycles) / totalVal4Paths, 6)
+        return globalCoef, coefMap, globalDegreeCoef, coefDegreeMap
+    
+    def getClustCoefOpsahlLocal(self, node):
+        num4Paths, num4Cycles, _, _ = self.__getPathsAndCycles(node)
+        return round(float(num4Cycles) / num4Paths, 6) if num4Paths > 0 else None
+    
+    def __getPathsAndCycles(self, node, nbrsMap={}):
+        num4Paths = 0
+        val4Paths = 0.0
+        num4Cycles = 0
+        val4Cycles = 0.0
+        
+        nbrs = [n for n in self.G[node]]
+        for (n1_1, n1_2) in list(itertools.product(nbrs, repeat=2)):
+            if n1_1 == n1_2:
+                continue
+
+            w_n1_1 = self.__degree_weight(self.G.degree(n1_1))
+            w_n1_2 = self.__degree_weight(self.G.degree(n1_2))
+
+            nbrs2_1 = set(self.G[n1_1])-set([node])
+            nbrs2_2 = set(self.G[n1_2])-set([node])
+            
+            nbrs2_common = nbrs2_1 & nbrs2_2
+            n4Paths = len(nbrs2_1) * len(nbrs2_2) - len(nbrs2_common)
+
+            num4Paths += n4Paths
+            val4Paths += (n4Paths * (float(w_n1_1 + w_n1_2)/2))
+            
+            n4Cycles, v4Cycles = self.__getCycles(nbrs2_1, nbrs2_2, n1_1, n1_2, nbrsMap)
+            num4Cycles += n4Cycles
+            val4Cycles += v4Cycles
+
+        return num4Paths, val4Paths, num4Cycles, val4Cycles
+
+    def __getCycles(self, nbrs2_1, nbrs2_2, n1_1, n1_2, nbrsMap):
+        num4Cycles = 0
+        val4Cycles = 0
+        w_n1_1 = self.__degree_weight(self.G.degree(n1_1))
+        w_n1_2 = self.__degree_weight(self.G.degree(n1_2))
+        
+        for (n2_1, n2_2) in list(itertools.product(nbrs2_1, nbrs2_2)):
+            if n2_1 == n2_2:
+                continue
+            
+            if n2_1<n2_2:
+                nmin, nmax = n2_1, n2_2
+            else:
+                nmin, nmax = n2_2, n2_1
+
+            nbrid = (nmax<<32) + nmin
+            if not nbrid in nbrsMap:
+                nbrs3_common = set(self.G[n2_1]) & set(self.G[n2_2])
+                common_weight = self.__degree_weight_nodes(nbrs3_common) if len(nbrs3_common)>0 else 0
+                nbrsMap[nbrid] = (common_weight, nbrs3_common)
+            else:
+                (common_weight, nbrs3_common) = nbrsMap[nbrid]
+            
+            common_len = len(nbrs3_common)
+            if n1_1 in nbrs3_common:
+                common_len -= 1
+                common_weight -= w_n1_1
+            if n1_2 in nbrs3_common:
+                common_len -= 1
+                common_weight -= w_n1_2
+            if common_len>0:
+                num4Cycles += 1
+                val4Cycles += (float(common_weight + w_n1_1 + w_n1_2) / 3)
+
+        return num4Cycles, val4Cycles
+
+
+    def getD2Neighbors(self, node):
+        nodes = []
+        for n in self.G.neighbors(node):
+            nodes.extend(self.G.neighbors(n))
+        return set(nodes) - set([node])
+
+    def getDegreeClusterCoef(self, node, doprint=False):
+        if not self.hasNode(node):
+            return 0.0
+#        doprint = True if node==597 else False
+        
+        cc_new = 0.0
+        cc_orig = 0.0
+        nbrs2=set([u for nbr in self.G[node] for u in self.G[nbr]])-set([node])
+
+        if doprint:
+            print "Node:", node
+            print "Node degree:", self.G.degree(node)
+            nbrdetails = sorted([[self.G.degree(n), n, round(self.__degree_weight(self.G.degree(n)),3)] for n in self.G[node]], reverse=True)
+            print "D1 neighbours:", "|".join([str(n) for [_,n,_] in nbrdetails])
+            print "Neigh degrees:", [d for [d,_,_] in nbrdetails]
+            print "Neigh contrib:", [c for [_,_,c] in nbrdetails]
+#            print "D2 neighbours:", sorted(list(nbrs2))
+            neigh_details=[]
+        for u in nbrs2:
+            ccuv_new = self.__cc_new(self.G, u, node, doprint)
+            ccuv_orig = self.__cc_orig(self.G, u, node)
+            if doprint:
+                common = len(set(self.G[u]) & set(self.G[node]))
+                if common>1:
+                    neigh_details.append([u, common, round(ccuv_orig,2), round(ccuv_new,2)])
+#                print str(node)+"-"+str(u)+"(" + str(self.G.degree(u)) +"): orig="+str(ccuv_orig) + ", new=" + str(ccuv_new)
+            cc_new += ccuv_new
+            cc_orig += ccuv_orig
+        if cc_new > 0.0: 
+            cc_new /= len(nbrs2)
+        if cc_orig > 0.0: 
+            cc_orig /= len(nbrs2)
+
+        if doprint:
+#            print "D2 neighbors", neigh_details
+            print "cc new:", str(cc_new)
+            print "cc orig:", str(cc_orig)
+
+        return cc_new
+
+    def getGlobalDegreeClusterCoef(self, ntype):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        clustCoefMap = dict()
+        for node in nodes:
+            clustCoefMap[node] = self.getDegreeClusterCoef(node)
+        return clustCoefMap
+    
+    def __cc_orig(self, G, u, v):
+        nu, nv = set(G[u]), set(G[v])
+        return float(len(nu & nv))/len(nu | nv)
+
+    def __cc_new(self, G, u, v, doprint=False):
+        nu, nv = set(G[u]), set(G[v])
+        dsum = 0.0
+        lsum = 0.0
+        nu_and_nv = nu & nv
+        for z in nu | nv:
+            score = self.__degree_weight(G.degree(z))
+            if z in nu_and_nv:
+#                if doprint:
+#                    print "D" + str(z) + "=" + str(G.degree(z)) + ", " + str(self.__degree_weight(G.degree(z)))
+                dsum += score
+#            if G.degree(z)>1: 
+            lsum += score
+            
+        return dsum/lsum
+
+    def __degree_weight_nodes(self, nodes):
+        w_max = 0
+        for node in nodes:
+            w_node = self.__degree_weight(self.G.degree(node))
+            if w_node > w_max:
+                w_max = w_node
+        return w_max
+        
+    def __degree_weight(self, d):
+        discrete_d = int(2+d/10)
+        return 1/math.log(discrete_d,2) if d>1 else 0.0
+    

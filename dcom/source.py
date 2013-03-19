@@ -38,6 +38,8 @@ class NetSource():
 
         # read content
         for line in f:
+            if len(line) == 0 or line[0] == '#':
+                continue
             row = line.strip("\r\n").split(self.delimiter)
             if len(row)<2:
                 raise CommunitySourceError("Invalid number of fields: %d" % len(row))

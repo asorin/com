@@ -1,15 +1,19 @@
 # Absolute metrics columns
-metrics-columns: date,nodes-count,new-nodes,links-count,avg-node-degree,avg-node-strength,avg-node-lifetime,avg-new-link-shortest-path,degree-distribution
+#metrics-columns: date,nodes-count,new-nodes,links-count,avg-node-degree,avg-node-strength,avg-node-lifetime,avg-new-link-shortest-path,degree-distribution
+
+
+metrics-columns: date,avg-clust-coef-opsahl
+store-modules: clust-coef-opsahl
+
+#metrics-columns: date,local-clust-coef,local-clust-coef-degree
+
 
 
 # Relative metrics columns
 #metrics-columns: date-relative,avg-node-degree,avg-node-strength
 
-
-# Storing modules
-store-modules: nodes-degrees,nodes-strength,degree-links-count
-#,clustering-coefficient
-#neighbour-hubs-singles,avg-neighbour-degree
+#post-metrics-columns: date,avg-degree-clust-coef
+#post-store-modules: degree-clust-coef
 
 
 # Declaration of all modules
@@ -29,8 +33,14 @@ metrics-modules:
     avg-neighbour-degree:
         title: Maps of nodes-degrees and avg neighbour degree
         
-    clustering-coefficient:
+    clust-coef:
         title: Clustering coefficient map
+         
+    clust-coef-opsahl:
+        title: Clustering coefficient map - Opsahl
+         
+    clust-coef-degree:
+        title: Degree-based clustering coefficient map
          
     date:
         title: Date
@@ -83,13 +93,28 @@ metrics-modules:
         
     clust-coef-distribution:
         title: Clust coef distribution 1,Clust coef distribution 2
-        depends: nodes-degrees,clustering-coefficient
+        depends: nodes-degrees,clust-coef
     
     degree-clust-coef-correlation:
         title: Degree clust coef correlation 1,Degree clust coef correlation 2
-        depends: nodes-degrees,clustering-coefficient
+        depends: nodes-degrees,clust-coef
         
     avg-clust-coef:
         title: Avg clustering coef 1,Avg clustering coef 2
-        depends: clustering-coefficient
-        
+        depends: clust-coef
+
+    avg-clust-coef-degree:
+        title: Avg degree clustering coef 1, Avg difference 1
+        depends: clust-coef-degree
+
+    avg-clust-coef-opsahl:
+        title: Opsahl clustering coef 1,Opsahl clustering coef 2,Opsahl degree clustering coef 1,Opsahl degree clustering coef 2
+        depends: clust-coef-opsahl
+
+    local-clust-coef:
+        title: Local clustering coef 6
+        nodeid: 6
+
+    local-clust-coef-degree:
+        title: Local degree clustering coef 6
+        nodeid: 6

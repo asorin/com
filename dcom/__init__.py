@@ -69,10 +69,12 @@ def do_metrics(options):
     outf = options['output_file']
     delimiter = options['delimiter']
     
-    outf.write(delimiter.join(net.metrics.getNames()) + "\n")
+#    outf.write(delimiter.join(net.metrics.getNames()) + "\n")
     metrics = net.metrics.getMetrics()
-    for metric in metrics:
-        outf.write(delimiter.join(map(str,metric)) + "\n")
+    for metric_list in metrics:
+        for metric in metric_list:
+            if len(metric)>0:
+                outf.write(delimiter.join(map(str,metric)) + "\n")
 
 def do_partition_ntype(options, ntype, startGroup):
     net = options['network']

@@ -7,6 +7,9 @@ Created on 19 Nov 2012
 import bisect
 from modules import metrics_modules
 
+METRICS_PRE=0
+METRICS_POST=1
+
 """
 Base class for metrics
 
@@ -16,12 +19,22 @@ class Metrics:
     def __init__(self, net, options):
         self.net = net
         self.aggrPeriod = int(options['period'])
-        self.tsList = []
+        self.tsList = [[], []]
+        self.columns = [[], []]
+        self.storeModules = [[], []]
+        self.metricsModules = [[], []]
+        opt_columns = ['metrics-columns', 'post-metrics-columns']
+        opt_store = ['store-modules', 'post-store-modules']
         
-        self.columns = options['metrics-columns'].split(',')
-        self.storeModules = self.__loadModules(options, options['store-modules'].split(','), options['metrics-modules'])
-        self.metricsModules = self.__loadModules(options, self.columns, options['metrics-modules'], self.storeModules)
+        for i in [METRICS_PRE, METRICS_POST]:
+            self.columns[i] = self.__getListFromConfig(options, opt_columns[i])
+            self.storeModules[i] = self.__loadModules(options, 
+                                            self.__getListFromConfig(options,opt_store[i]), options['metrics-modules'])
+            self.metricsModules[i] = self.__loadModules(options, self.columns[i], options['metrics-modules'], self.storeModules[i])
     
+    def __getListFromConfig(self, options, config):
+        return options[config].split(',') if config in options and options[config] else []
+        
     def __loadModules(self, options, namesList, propertiesAll, dependencies=None):
         modules = {}
         for name in namesList:
@@ -40,54 +53,57 @@ class Metrics:
                 print "Loaded module '" + name + "'"
         return modules
 
-    def getAllModules(self):
+    def getAllModules(self, phase):
         modules = []
-        modules.extend(self.storeModules.itervalues())
-        modules.extend(self.metricsModules.itervalues())
+        modules.extend(self.storeModules[phase].itervalues())
+        modules.extend(self.metricsModules[phase].itervalues())
         return modules
         
-    def getNames(self):
+    def getNames(self, phase):
         names = []
-        for module in self.getOutputModules():
+        for module in self.getOutputModules(phase):
             names.extend(module.get_names())
             
         return names
 
     def getMetrics(self):
-        self.updateNetworkAll()
-        metrics_list = []
-        for ts in self.tsList:
-            ts_values = []
-            for module in self.getOutputModules():
-                ts_values.extend(module.get_values(ts))
-            metrics_list.append(ts_values)
+        metrics = []
+        for i in [METRICS_PRE, METRICS_POST]: 
+            metrics_list = [self.getNames(i)]
+            self.updateNetworkAll(i)
+            for ts in self.tsList[i]:
+                ts_values = []
+                for module in self.getOutputModules(i):
+                    ts_values.extend(module.get_values(ts))
+                metrics_list.append(ts_values)
+            metrics.append(metrics_list)
             
-        return metrics_list
+        return metrics
 
-    def getOutputModules(self):
+    def getOutputModules(self, phase):
         modules = []
-        for name in self.columns:
-            if name in self.metricsModules:
-                modules.append(self.metricsModules[name])
+        for name in self.columns[phase]:
+            if name in self.metricsModules[phase]:
+                modules.append(self.metricsModules[phase][name])
         return modules
         
-    def updateNetworkAll(self):
-        if len(self.tsList) > 0:
-            prevTs = self.tsList[len(self.tsList)-1]
+    def updateNetworkAll(self, phase):
+        if len(self.tsList[phase]) > 0:
+            prevTs = self.tsList[phase][len(self.tsList[phase])-1]
             
-            for module in self.getAllModules():
+            for module in self.getAllModules(phase):
                 module.update_from_network(prevTs)
     
-    def updateLinkAll(self, nodeA, nodeB, ts):
-        for module in self.getAllModules():
+    def updateLinkAll(self, nodeA, nodeB, ts, phase):
+        for module in self.getAllModules(phase):
             module.update_link(nodeA, nodeB, ts)
         
-    def updateNodeAll(self, node, ntype, ts):
-        for module in self.getAllModules():
+    def updateNodeAll(self, node, ntype, ts, phase):
+        for module in self.getAllModules(phase):
             module.update_node(node, ntype, ts)
         
-    def resetAll(self, ts):
-        for module in self.getAllModules():
+    def resetAll(self, ts, phase):
+        for module in self.getAllModules(phase):
             module.reset(ts)
         
 
@@ -99,20 +115,23 @@ class MetricsAbsolute(Metrics):
         Metrics.__init__(self, net, options)
 
     def newEventPre(self, nodeA, nodeB, ts):
-        tsAggr = int(ts/ self.aggrPeriod)
-        if not tsAggr in self.tsList:
-            # get stats fron network for previous timestamp
-            self.updateNetworkAll()
-            self.tsList.append(tsAggr)
-            # reset all modules
-            self.resetAll(tsAggr)
-                
-        # update modules
-        self.updateLinkAll(nodeA, nodeB, tsAggr)
+        self.__newEvent(nodeA, nodeB, ts, METRICS_PRE)
                     
     def newEventPost(self, nodeA, nodeB, ts):
+        self.__newEvent(nodeA, nodeB, ts, METRICS_POST)
         pass
-            
+
+    def __newEvent(self, nodeA, nodeB, ts, phase):
+        tsAggr = int(ts/ self.aggrPeriod)
+        if not tsAggr in self.tsList[phase]:
+            # get stats fron network for previous timestamp
+            self.updateNetworkAll(phase)
+            self.tsList[phase].append(tsAggr)
+            # reset all modules
+            self.resetAll(tsAggr, phase)
+                
+        # update modules
+        self.updateLinkAll(nodeA, nodeB, tsAggr, phase)
 
 """
 Metrics are updated based on relative (birth of node) time
@@ -122,15 +141,15 @@ class MetricsRelative(Metrics):
         Metrics.__init__(self, net, options)
 
     def newEventPre(self, nodeA, nodeB, ts):
-        self.__updateNodeStats(nodeA, 0, ts)
-        self.__updateNodeStats(nodeB, 1, ts)
+        self.__updateNodeStats(nodeA, 0, ts, METRICS_PRE)
+        self.__updateNodeStats(nodeB, 1, ts, METRICS_PRE)
                     
-    def __updateNodeStats(self, node, ntype, ts):
+    def __updateNodeStats(self, node, ntype, ts, phase):
         tsAggr = int(self.__relativeTs(node, ts)/ self.aggrPeriod)
-        if not tsAggr in self.tsList:
-            bisect.insort(self.tsList, tsAggr)
+        if not tsAggr in self.tsList[phase]:
+            bisect.insort(self.tsList[phase], tsAggr)
         # update modules
-        self.updateNodeAll(node, ntype, tsAggr)
+        self.updateNodeAll(node, ntype, tsAggr, phase)
         
     def newEventPost(self, nodeA, nodeB, ts):
         pass

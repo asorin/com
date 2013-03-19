@@ -211,11 +211,11 @@ class AvgNeighbourDegree(MetricsModule):
                 self.nodeAvgDegreeCorr[0][ts], self.nodeAvgDegreeCorr[1][ts]]
 
 
-class ClusteringCoefficient(MetricsModule):
+class ClustCoef(MetricsModule):
 
     def __init__(self, conf):
         MetricsModule.__init__(self, conf)
-        self.nodeClustCoef = [dict(), dict()]
+        self.clustCoef = [dict(), dict()]
 
     def reset(self, ts):
         pass
@@ -227,14 +227,84 @@ class ClusteringCoefficient(MetricsModule):
         pass
 
     def update_from_network(self, ts):
-        self.nodeClustCoef[0][ts] = self.net.getClustCoef(0)
-        self.nodeClustCoef[1][ts] = self.net.getClustCoef(1)
+        self.clustCoef[0][ts] = self.net.getClustCoef(0)
+        self.clustCoef[1][ts] = dict()#self.net.getClustCoef(1)
 
     def get_values(self, ts):
-        if not ts in self.nodeClustCoef[0]:
+        if not ts in self.clustCoef[0]:
             return []
 
-        return [self.nodeClustCoef[0][ts], self.nodeClustCoef[1][ts]]
+        return [self.clustCoef[0][ts], self.clustCoef[1][ts]]
+
+
+class ClustCoefOpsahl(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.globalCoefMap = [dict(), dict()]
+        self.localCoefMap = [dict(), dict()]
+        self.globalCoefMapDegree = [dict(), dict()]
+        self.localCoefMapDegree = [dict(), dict()]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        globalCoef, localCoef, globalCoefDegree, localCoefDegree = self.net.getClustCoefOpsahlAll(0)
+#        globalCoef, localCoef = self.net.getClustCoefOpsahlOriginal(0)
+        self.globalCoefMap[0][ts] = globalCoef
+        self.localCoefMap[0][ts] = localCoef
+        self.globalCoefMapDegree[0][ts] = globalCoefDegree
+        self.localCoefMapDegree[0][ts] = localCoefDegree
+        
+        self.globalCoefMap[1][ts] = 0
+        self.localCoefMap[1][ts] = dict()
+        self.globalCoefMapDegree[1][ts] = 0
+        self.localCoefMapDegree[1][ts] = dict()
+
+    def get_values(self, ts):
+        if not ts in self.globalCoefMap[0]:
+            return []
+
+        return [self.globalCoefMap[0][ts],self.localCoefMap[0][ts], self.globalCoefMap[1][ts], self.localCoefMap[1][ts],
+                self.globalCoefMapDegree[0][ts],self.localCoefMapDegree[0][ts], self.globalCoefMapDegree[1][ts], self.localCoefMapDegree[1][ts]]
+
+
+class ClustCoefDegree(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.degreeClustCoef = dict()
+        self.diffClustCoef = dict()
+
+    def reset(self, ts):
+        self.degreeClustCoef[ts] = dict()
+        self.diffClustCoef[ts] = dict()
+
+    def update_link(self, nodeA, nodeB, ts):
+#        self.degreeClustCoef[ts][nodeA] = self.net.getNewClusterCoef(nodeA)
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        self.degreeClustCoef[ts] = self.net.getGlobalDegreeClusterCoef(0)
+#        for n, c in self.net.getClustCoef(0).iteritems():
+#            dc = self.degreeClustCoef[ts][n]
+#            if dc>0.4 and abs(c-dc)>0.2:
+#                print n, round(c,3), round(dc,3)
+#            self.diffClustCoef[ts][n] = c - dc
+        pass
+
+    def get_values(self, ts):
+        return [self.degreeClustCoef[ts], self.diffClustCoef[ts]]
 
 
 """
@@ -590,7 +660,7 @@ class AvgClustCoef(MetricsModule):
 
     def __init__(self, conf):
         MetricsModule.__init__(self, conf)
-        self.clustCoef = conf['clustering-coefficient']
+        self.clustCoef = conf['clust-coef']
 
     def reset(self, ts):
         pass
@@ -606,6 +676,7 @@ class AvgClustCoef(MetricsModule):
 
     def get_values(self, ts):
         coef1, coef2 = self.clustCoef.get_values(ts)
+#        print_map(coef1)
         return [avg_values(coef1), avg_values(coef2)]
 
 
@@ -613,7 +684,7 @@ class ClustCoefDistribution(MetricsModule):
 
     def __init__(self, conf):
         MetricsModule.__init__(self, conf)
-        self.clustCoef = conf['clustering-coefficient']
+        self.clustCoef = conf['clust-coef']
 
     def reset(self, ts):
         pass
@@ -632,11 +703,34 @@ class ClustCoefDistribution(MetricsModule):
         return [distribution(coef1, 0.1, 1), distribution(coef2, 0.1, 1)]
 
 
+class AvgClustCoefOpsahl(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.clustCoef = conf['clust-coef-opsahl']
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        pass
+
+    def get_values(self, ts):
+        global1, _, global2, _, globalDg1, _, globalDg2, _ = self.clustCoef.get_values(ts)
+        return [global1, global2, globalDg1, globalDg2]
+
+
 class DegreeClustCoefCorrelation(MetricsModule):
 
     def __init__(self, conf):
         MetricsModule.__init__(self, conf)
-        self.clustCoef = conf['clustering-coefficient']
+        self.clustCoef = conf['clust-coef']
         self.nodeDegrees = conf['nodes-degrees']
 
     def reset(self, ts):
@@ -665,6 +759,78 @@ class DegreeClustCoefCorrelation(MetricsModule):
                 correlation_list(get_avg_map(degreeCoefCorr2))]
 
 
+class AvgClustCoefDegree(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.degreeClustCoef = conf['clust-coef-degree']
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        pass
+
+    def get_values(self, ts):
+        [coef1, diff1] = self.degreeClustCoef.get_values(ts)
+        return [avg_values(coef1),avg_values(diff1)]
+    
+
+class LocalClustCoef(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.nodeClustCoef = dict()
+        self.nodeId = int(conf['nodeid'])
+
+    def reset(self, ts):
+        self.nodeClustCoef[ts] = 0
+
+    def update_link(self, nodeA, nodeB, ts):
+#        self.degreeClustCoef[ts][nodeA] = self.net.getNewClusterCoef(nodeA)
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        self.nodeClustCoef[ts] = self.net.getLocalClustCoef(self.nodeId)
+        pass
+
+    def get_values(self, ts):
+        return [round(self.nodeClustCoef[ts], 3)]
+
+
+class LocalClustCoefDegree(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.nodeClustCoef = dict()
+        self.nodeId = int(conf['nodeid'])
+
+    def reset(self, ts):
+        self.nodeClustCoef[ts] = 0
+
+    def update_link(self, nodeA, nodeB, ts):
+#        self.degreeClustCoef[ts][nodeA] = self.net.getNewClusterCoef(nodeA)
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        self.nodeClustCoef[ts] = self.net.getDegreeClusterCoef(self.nodeId, True)
+        pass
+
+    def get_values(self, ts):
+        return [round(self.nodeClustCoef[ts], 3)]
+
 
 metrics_modules = {# store modules
                    'nodes-degrees' : NodesDegrees,
@@ -672,7 +838,9 @@ metrics_modules = {# store modules
                    'neighbour-hubs-singles' : NeighbourHubsSingles,
                    'degree-links-count' : DegreeLinksCount,
                    'avg-neighbour-degree' : AvgNeighbourDegree,
-                   'clustering-coefficient' : ClusteringCoefficient, 
+                   'clust-coef' : ClustCoef,
+                   'clust-coef-opsahl' : ClustCoefOpsahl,
+                   'clust-coef-degree' : ClustCoefDegree,
                    # metrics modules
                    'date' : Date,
                    'date-relative' : DateRelative,
@@ -689,8 +857,12 @@ metrics_modules = {# store modules
                    'avg-neighbour-degree-distribution' : AvgNeighbourDegreeDistribution,
                    'degree-avg-neighbour-degree-correlation' : DegreeAvgNeighbourDegreeCorrelation,
                    'avg-clust-coef' : AvgClustCoef,
+                   'avg-clust-coef-opsahl' : AvgClustCoefOpsahl,
                    'clust-coef-distribution' : ClustCoefDistribution,
                    'degree-clust-coef-correlation' : DegreeClustCoefCorrelation,
+                   'avg-clust-coef-degree' : AvgClustCoefDegree,
+                   'local-clust-coef' : LocalClustCoef,
+                   'local-clust-coef-degree' : LocalClustCoefDegree,
                   }
 
 

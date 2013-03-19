@@ -27,6 +27,8 @@ def return_from_map(vmap, key):
     
 def distribution(vmap, binsz=1, maxv=0):
     d = vmap.values()
+    if len(d)==0:
+        return "None"
     max_d = max(d)
     if max_d == 0:
         return "0"
@@ -86,3 +88,6 @@ def correlation(vmap1, vmap2):
         y.append(vmap2[key])
     return round(scipy.stats.pearsonr(x, y)[0], 3)
 
+def print_map(vmap):
+    for k,v in sorted(vmap.iteritems()):
+        print k,v
