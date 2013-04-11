@@ -228,7 +228,7 @@ class ClustCoef(MetricsModule):
 
     def update_from_network(self, ts):
         self.clustCoef[0][ts] = self.net.getClustCoef(0)
-        self.clustCoef[1][ts] = dict()#self.net.getClustCoef(1)
+        self.clustCoef[1][ts] = self.net.getClustCoef(1)
 
     def get_values(self, ts):
         if not ts in self.clustCoef[0]:
@@ -237,14 +237,21 @@ class ClustCoef(MetricsModule):
         return [self.clustCoef[0][ts], self.clustCoef[1][ts]]
 
 
-class ClustCoefOpsahl(MetricsModule):
+"""
+Clustering coefficient maps - Opsahl
+"""
 
-    def __init__(self, conf):
+class OpsahlClustCoef(MetricsModule):
+
+    def __init__(self, conf, ntype):
         MetricsModule.__init__(self, conf)
-        self.globalCoefMap = [dict(), dict()]
-        self.localCoefMap = [dict(), dict()]
-        self.globalCoefMapDegree = [dict(), dict()]
-        self.localCoefMapDegree = [dict(), dict()]
+        self.globalCoefMap = {}
+        self.globalCoefDgMap = {}
+        self.localCoefMap = {}
+        self.localCoefDgMap = {}
+        self.localDegreeCoefMap = {}
+        self.localDegreeCoefDgMap = {}
+        self.ntype = ntype
 
     def reset(self, ts):
         pass
@@ -256,55 +263,114 @@ class ClustCoefOpsahl(MetricsModule):
         pass
 
     def update_from_network(self, ts):
-        globalCoef, localCoef, globalCoefDegree, localCoefDegree = self.net.getClustCoefOpsahlAll(0)
+        globalCoef, globalDgCoef, coefMap, coefDgMap, degreeCoefMap, degreeCoefDgMap = self.net.getClustCoefOpsahlAll(self.ntype)
 #        globalCoef, localCoef = self.net.getClustCoefOpsahlOriginal(0)
-        self.globalCoefMap[0][ts] = globalCoef
-        self.localCoefMap[0][ts] = localCoef
-        self.globalCoefMapDegree[0][ts] = globalCoefDegree
-        self.localCoefMapDegree[0][ts] = localCoefDegree
-        
-        self.globalCoefMap[1][ts] = 0
-        self.localCoefMap[1][ts] = dict()
-        self.globalCoefMapDegree[1][ts] = 0
-        self.localCoefMapDegree[1][ts] = dict()
+        self.globalCoefMap[ts] = globalCoef
+        self.globalCoefDgMap[ts] = globalDgCoef
+        self.localCoefMap[ts] = coefMap
+        self.localCoefDgMap[ts] = coefDgMap
+        self.localDegreeCoefMap[ts] = degreeCoefMap
+        self.localDegreeCoefDgMap[ts] = degreeCoefDgMap
 
     def get_values(self, ts):
-        if not ts in self.globalCoefMap[0]:
+        if not ts in self.globalCoefMap:
             return []
 
-        return [self.globalCoefMap[0][ts],self.localCoefMap[0][ts], self.globalCoefMap[1][ts], self.localCoefMap[1][ts],
-                self.globalCoefMapDegree[0][ts],self.localCoefMapDegree[0][ts], self.globalCoefMapDegree[1][ts], self.localCoefMapDegree[1][ts]]
+        return [self.globalCoefMap[ts], self.globalCoefDgMap[ts],
+                self.localCoefMap[ts], self.localCoefDgMap[ts],
+                self.localDegreeCoefMap[ts], self.localDegreeCoefDgMap[ts]]
 
-
-class ClustCoefDegree(MetricsModule):
-
+class OpsahlClustCoefUsers(OpsahlClustCoef):
     def __init__(self, conf):
+        OpsahlClustCoef.__init__(self, conf, 0)
+
+class OpsahlClustCoefObjects(OpsahlClustCoef):
+    def __init__(self, conf):
+        OpsahlClustCoef.__init__(self, conf, 1)
+
+
+"""
+Clustering coefficient maps - Latapy
+"""
+
+class LatapyClustCoef(MetricsModule):
+
+    def __init__(self, conf, ntype):
         MetricsModule.__init__(self, conf)
-        self.degreeClustCoef = dict()
-        self.diffClustCoef = dict()
+        self.coefMap, self.coefDgMap = {}, {}
+        self.degreeCoefMap, self.degreeCoefDgMap = {}, {}
+        self.ntype = ntype
 
     def reset(self, ts):
-        self.degreeClustCoef[ts] = dict()
-        self.diffClustCoef[ts] = dict()
+        self.coefMap[ts] = {}
+        self.coefDgMap[ts] = {}
+        self.degreeCoefMap[ts] = {}
+        self.degreeCoefDgMap[ts] = {}
 
     def update_link(self, nodeA, nodeB, ts):
-#        self.degreeClustCoef[ts][nodeA] = self.net.getNewClusterCoef(nodeA)
         pass
 
     def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
-        self.degreeClustCoef[ts] = self.net.getGlobalDegreeClusterCoef(0)
-#        for n, c in self.net.getClustCoef(0).iteritems():
-#            dc = self.degreeClustCoef[ts][n]
-#            if dc>0.4 and abs(c-dc)>0.2:
-#                print n, round(c,3), round(dc,3)
-#            self.diffClustCoef[ts][n] = c - dc
-        pass
+        coefs, coefsDg, degreeCoefs, degreeCoefsDg = self.net.getClusterCoefLatapy(self.ntype)
+        self.coefMap[ts] = coefs
+        self.coefDgMap[ts] = coefsDg
+        self.degreeCoefMap[ts] = degreeCoefs
+        self.degreeCoefDgMap[ts] = degreeCoefsDg
 
     def get_values(self, ts):
-        return [self.degreeClustCoef[ts], self.diffClustCoef[ts]]
+        return [self.coefMap[ts], self.coefDgMap[ts], self.degreeCoefMap[ts], self.degreeCoefDgMap[ts]]
+
+
+class LatapyClustCoefUsers(LatapyClustCoef):
+    def __init__(self, conf):
+        LatapyClustCoef.__init__(self, conf, 0)
+
+class LatapyClustCoefObjects(LatapyClustCoef):
+    def __init__(self, conf):
+        LatapyClustCoef.__init__(self, conf, 1)
+
+
+"""
+Collaborative similarity - Shang et al 2011
+Users and objects
+"""
+
+class CollabSimilarity(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.simMap, self.degreeSimMap = {}, {}
+        self.ntype = ntype
+
+    def reset(self, ts):
+        self.simMap[ts] = {}
+        self.degreeSimMap[ts] = {}
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        sims, degreeSims = self.net.getCollabSimilarityAll(self.ntype)
+        self.simMap[ts] = sims
+        self.degreeSimMap[ts] = degreeSims
+
+    def get_values(self, ts):
+        return [self.simMap[ts], self.degreeSimMap[ts]]
+
+
+class CollabSimilarityUsers(CollabSimilarity):
+    def __init__(self, conf):
+        CollabSimilarity.__init__(self, conf, 0)
+
+class CollabSimilarityObjects(CollabSimilarity):
+    def __init__(self, conf):
+        CollabSimilarity.__init__(self, conf, 1)
 
 
 """
@@ -655,6 +721,10 @@ class DegreeAvgNeighbourDegreeCorrelation(MetricsModule):
         _, _, avgDgCorr1, avgDgCorr2 = self.avgNeighbourDegree.get_values(ts)
         return [correlation_list(avgDgCorr1), correlation_list(avgDgCorr2)]
 
+"""
+Average and distribution of clustering coefficiet
+NetworkX implementation (Latapy)
+"""
 
 class AvgClustCoef(MetricsModule):
 
@@ -676,7 +746,6 @@ class AvgClustCoef(MetricsModule):
 
     def get_values(self, ts):
         coef1, coef2 = self.clustCoef.get_values(ts)
-#        print_map(coef1)
         return [avg_values(coef1), avg_values(coef2)]
 
 
@@ -703,11 +772,16 @@ class ClustCoefDistribution(MetricsModule):
         return [distribution(coef1, 0.1, 1), distribution(coef2, 0.1, 1)]
 
 
-class AvgClustCoefOpsahl(MetricsModule):
+"""
+Average clustering coefficient - Opsahl
+Users and objects
+"""
 
-    def __init__(self, conf):
+class OpsahlAvgClustCoef(MetricsModule):
+
+    def __init__(self, conf, ntype):
         MetricsModule.__init__(self, conf)
-        self.clustCoef = conf['clust-coef-opsahl']
+        self.clustCoef = conf['opsahl-clust-coef-'+ntype]
 
     def reset(self, ts):
         pass
@@ -722,16 +796,31 @@ class AvgClustCoefOpsahl(MetricsModule):
         pass
 
     def get_values(self, ts):
-        global1, _, global2, _, globalDg1, _, globalDg2, _ = self.clustCoef.get_values(ts)
-        return [global1, global2, globalDg1, globalDg2]
+        globalc, globalcDg, localCoefMap, localCoefDgMap, _, _ = self.clustCoef.get_values(ts)
+#        for node, coef in sorted(localCoefMap.iteritems()):
+#            print node, coef, localCoefDgMap[node]
+        return [globalc, globalcDg]
 
-
-class DegreeClustCoefCorrelation(MetricsModule):
+class OpsahlAvgClustCoefUsers(OpsahlAvgClustCoef):
 
     def __init__(self, conf):
+        OpsahlAvgClustCoef.__init__(self, conf, "users")
+
+class OpsahlAvgClustCoefObjects(OpsahlAvgClustCoef):
+    def __init__(self, conf):
+        OpsahlAvgClustCoef.__init__(self, conf, "objects")
+
+
+"""
+Clustering coefficient distribution - Opsahl
+Users and objects
+"""
+
+class OpsahlClustCoefDist(MetricsModule):
+
+    def __init__(self, conf, ntype):
         MetricsModule.__init__(self, conf)
-        self.clustCoef = conf['clust-coef']
-        self.nodeDegrees = conf['nodes-degrees']
+        self.clustCoef = conf['opsahl-clust-coef-'+ntype]
 
     def reset(self, ts):
         pass
@@ -746,24 +835,29 @@ class DegreeClustCoefCorrelation(MetricsModule):
         pass
 
     def get_values(self, ts):
-        coef1, coef2 = self.clustCoef.get_values(ts)
-        degrees1, degrees2 = self.nodeDegrees.get_values(ts)
-        degreeCoefCorr1, degreeCoefCorr2 = dict(), dict()
-        
-        for node, degree in degrees1.iteritems():
-            sum_and_count(degreeCoefCorr1, degree, coef1[node])
-        for node, degree in degrees2.iteritems():
-            sum_and_count(degreeCoefCorr2, degree, coef2[node])
-            
-        return [correlation_list(get_avg_map(degreeCoefCorr1)), 
-                correlation_list(get_avg_map(degreeCoefCorr2))]
+        _, _, nodeCoefs, nodeCoefsDg, _, _ = self.clustCoef.get_values(ts)
+        return [distribution(nodeCoefs, 0.1, 1), distribution(nodeCoefsDg, 0.1, 1)]
 
-
-class AvgClustCoefDegree(MetricsModule):
+class OpsahlClustCoefDistUsers(OpsahlClustCoefDist):
 
     def __init__(self, conf):
+        OpsahlClustCoefDist.__init__(self, conf, "users")
+
+class OpsahlClustCoefDistObjects(OpsahlClustCoefDist):
+    def __init__(self, conf):
+        OpsahlClustCoefDist.__init__(self, conf, "objects")
+
+
+"""
+Clustering coefficient correlation with degree - Opsahl 
+Users and objects
+"""
+
+class OpsahlClustCoefDegreeCorr(MetricsModule):
+
+    def __init__(self, conf, ntype):
         MetricsModule.__init__(self, conf)
-        self.degreeClustCoef = conf['clust-coef-degree']
+        self.clustCoefOpsahl = conf['opsahl-clust-coef-'+ntype]
 
     def reset(self, ts):
         pass
@@ -778,9 +872,134 @@ class AvgClustCoefDegree(MetricsModule):
         pass
 
     def get_values(self, ts):
-        [coef1, diff1] = self.degreeClustCoef.get_values(ts)
-        return [avg_values(coef1),avg_values(diff1)]
-    
+        [_, _, _, _, degreeCoefs, degreeCoefsDg] = self.clustCoefOpsahl.get_values(ts)
+
+        return [correlation_list(degreeCoefs), correlation_list(degreeCoefsDg)]
+
+
+class OpsahlClustCoefDegreeCorrUsers(OpsahlClustCoefDegreeCorr):
+    def __init__(self, conf):
+        OpsahlClustCoefDegreeCorr.__init__(self, conf, "users")
+
+class OpsahlClustCoefDegreeCorrObjects(OpsahlClustCoefDegreeCorr):
+    def __init__(self, conf):
+        OpsahlClustCoefDegreeCorr.__init__(self, conf, "objects")
+
+
+"""
+Average clustering coefficient - Latapy
+Users and objects
+"""
+
+class LatapyAvgClustCoef(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.clustCoefLatapy = conf['latapy-clust-coef-'+ntype]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        pass
+
+    def get_values(self, ts):
+        [coefs, coefsDg, _, _] = self.clustCoefLatapy.get_values(ts)
+        return [avg_values(coefs),avg_values(coefsDg)]
+
+class LatapyAvgClustCoefUsers(LatapyAvgClustCoef):
+    def __init__(self, conf):
+        LatapyAvgClustCoef.__init__(self, conf, "users")
+
+class LatapyAvgClustCoefObjects(LatapyAvgClustCoef):
+    def __init__(self, conf):
+        LatapyAvgClustCoef.__init__(self, conf, "objects")
+
+
+"""
+Clustering coefficient distribution - Latapy
+Users and objects
+"""
+
+class LatapyClustCoefDist(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.clustCoef = conf['latapy-clust-coef-'+ntype]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        pass
+
+    def get_values(self, ts):
+        [coefs, coefsDg, _, _] = self.clustCoef.get_values(ts)
+        return [distribution(coefs, 0.1, 1), distribution(coefsDg, 0.1, 1)]
+
+class LatapyClustCoefDistUsers(LatapyClustCoefDist):
+
+    def __init__(self, conf):
+        LatapyClustCoefDist.__init__(self, conf, "users")
+
+class LatapyClustCoefDistObjects(LatapyClustCoefDist):
+    def __init__(self, conf):
+        LatapyClustCoefDist.__init__(self, conf, "objects")
+
+
+"""
+Clustering coefficient correlation with degree - Latapy 
+Users and objects
+"""
+
+class LatapyClustCoefDegreeCorr(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.clustCoefLatapy = conf['latapy-clust-coef-'+ntype]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        pass
+
+    def get_values(self, ts):
+        [_, _, degreeCoefs, degreeCoefsDg] = self.clustCoefLatapy.get_values(ts)
+
+        return [correlation_list(degreeCoefs), correlation_list(degreeCoefsDg)]
+
+
+class LatapyClustCoefDegreeCorrUsers(LatapyClustCoefDegreeCorr):
+    def __init__(self, conf):
+        LatapyClustCoefDegreeCorr.__init__(self, conf, "users")
+
+class LatapyClustCoefDegreeCorrObjects(LatapyClustCoefDegreeCorr):
+    def __init__(self, conf):
+        LatapyClustCoefDegreeCorr.__init__(self, conf, "objects")
+
+
+"""
+Local clustering coefficient - Latapy
+"""
 
 class LocalClustCoef(MetricsModule):
 
@@ -807,29 +1026,143 @@ class LocalClustCoef(MetricsModule):
         return [round(self.nodeClustCoef[ts], 3)]
 
 
-class LocalClustCoefDegree(MetricsModule):
+class LatapyLocalClustCoef(MetricsModule):
 
     def __init__(self, conf):
         MetricsModule.__init__(self, conf)
-        self.nodeClustCoef = dict()
+        self.nodeCoef = {}
+        self.nodeCoefDg = {}
         self.nodeId = int(conf['nodeid'])
 
     def reset(self, ts):
-        self.nodeClustCoef[ts] = 0
+        self.nodeCoef[ts] = 0
+        self.nodeCoefDg[ts] = 0
 
     def update_link(self, nodeA, nodeB, ts):
-#        self.degreeClustCoef[ts][nodeA] = self.net.getNewClusterCoef(nodeA)
         pass
 
     def update_node(self, node, ntype, ts):
         pass
 
     def update_from_network(self, ts):
-        self.nodeClustCoef[ts] = self.net.getDegreeClusterCoef(self.nodeId, True)
+        coef, coefDg = self.net.getNodeClusterCoefLatapy(self.nodeId, True)
+        self.nodeCoef[ts] = coef
+        self.nodeCoefDg[ts] = coefDg
+
+    def get_values(self, ts):
+        return [round(self.nodeCoef[ts], 3), round(self.nodeCoefDg[ts], 3)]
+
+
+"""
+Average collaborative similarity - Shang et al 2011
+Users and objects
+"""
+
+class AvgCollabSimilarity(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.collSim = conf['collab-similarity-'+ntype]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
         pass
 
     def get_values(self, ts):
-        return [round(self.nodeClustCoef[ts], 3)]
+        [simMap, _] = self.collSim.get_values(ts)
+        return [avg_values(simMap)]
+
+class AvgCollabSimilarityUsers(AvgCollabSimilarity):
+    def __init__(self, conf):
+        AvgCollabSimilarity.__init__(self, conf, "users")
+
+class AvgCollabSimilarityObjects(AvgCollabSimilarity):
+    def __init__(self, conf):
+        AvgCollabSimilarity.__init__(self, conf, "objects")
+
+
+"""
+Collaborative similarity distribution
+Users and objects
+"""
+
+class CollabSimilarityDist(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.collSim = conf['collab-similarity-'+ntype]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        pass
+
+    def get_values(self, ts):
+        [simMap, _] = self.collSim.get_values(ts)
+        return [distribution(simMap, 0.1, 1)]
+
+class CollabSimilarityDistUsers(CollabSimilarityDist):
+
+    def __init__(self, conf):
+        CollabSimilarityDist.__init__(self, conf, "users")
+
+class CollabSimilarityDistObjects(CollabSimilarityDist):
+    def __init__(self, conf):
+        CollabSimilarityDist.__init__(self, conf, "objects")
+
+
+"""
+Collaborative similarity correlation with degree 
+Users and objects
+"""
+
+class CollabSimilarityDegreeCorr(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.collSim = conf['collab-similarity-'+ntype]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        pass
+
+    def get_values(self, ts):
+        [_, degreeSimMap] = self.collSim.get_values(ts)
+
+        return [correlation_list(degreeSimMap)]
+
+
+class CollabSimilarityDegreeCorrUsers(CollabSimilarityDegreeCorr):
+    def __init__(self, conf):
+        CollabSimilarityDegreeCorr.__init__(self, conf, "users")
+
+class CollabSimilarityDegreeCorrObjects(CollabSimilarityDegreeCorr):
+    def __init__(self, conf):
+        CollabSimilarityDegreeCorr.__init__(self, conf, "objects")
+
 
 
 metrics_modules = {# store modules
@@ -839,8 +1172,12 @@ metrics_modules = {# store modules
                    'degree-links-count' : DegreeLinksCount,
                    'avg-neighbour-degree' : AvgNeighbourDegree,
                    'clust-coef' : ClustCoef,
-                   'clust-coef-opsahl' : ClustCoefOpsahl,
-                   'clust-coef-degree' : ClustCoefDegree,
+                   'latapy-clust-coef-users' : LatapyClustCoefUsers,
+                   'latapy-clust-coef-objects' : LatapyClustCoefObjects,
+                   'opsahl-clust-coef-users' : OpsahlClustCoefUsers,
+                   'opsahl-clust-coef-objects' : OpsahlClustCoefObjects,
+                   'collab-similarity-users' : CollabSimilarityUsers,
+                   'collab-similarity-objects' : CollabSimilarityObjects,
                    # metrics modules
                    'date' : Date,
                    'date-relative' : DateRelative,
@@ -856,13 +1193,33 @@ metrics_modules = {# store modules
                    'degree-links-count-correlation' : DegreeLinksCountCorrelation,
                    'avg-neighbour-degree-distribution' : AvgNeighbourDegreeDistribution,
                    'degree-avg-neighbour-degree-correlation' : DegreeAvgNeighbourDegreeCorrelation,
+                   
                    'avg-clust-coef' : AvgClustCoef,
-                   'avg-clust-coef-opsahl' : AvgClustCoefOpsahl,
                    'clust-coef-distribution' : ClustCoefDistribution,
-                   'degree-clust-coef-correlation' : DegreeClustCoefCorrelation,
-                   'avg-clust-coef-degree' : AvgClustCoefDegree,
                    'local-clust-coef' : LocalClustCoef,
-                   'local-clust-coef-degree' : LocalClustCoefDegree,
+                   
+                   'opsahl-avg-clust-coef-users' : OpsahlAvgClustCoefUsers,
+                   'opsahl-avg-clust-coef-objects' : OpsahlAvgClustCoefObjects,
+                   'opsahl-clust-coef-dist-users' : OpsahlClustCoefDistUsers,
+                   'opsahl-clust-coef-dist-objects' : OpsahlClustCoefDistObjects,
+                   'opsahl-clust-coef-degree-corr-users' : OpsahlClustCoefDegreeCorrUsers,
+                   'opsahl-clust-coef-degree-corr-objects' : OpsahlClustCoefDegreeCorrObjects,
+                   
+                   'latapy-avg-clust-coef-users' : LatapyAvgClustCoefUsers,
+                   'latapy-avg-clust-coef-objects' : LatapyAvgClustCoefObjects,
+                   'latapy-clust-coef-dist-users' : LatapyClustCoefDistUsers,
+                   'latapy-clust-coef-dist-objects' : LatapyClustCoefDistObjects,
+                   'latapy-clust-coef-degree-corr-users' : LatapyClustCoefDegreeCorrUsers,
+                   'latapy-clust-coef-degree-corr-objects' : LatapyClustCoefDegreeCorrObjects,
+                   'latapy-local-clust-coef' : LatapyLocalClustCoef,
+                   
+                   'avg-collab-similarity-users' : AvgCollabSimilarityUsers,
+                   'avg-collab-similarity-objects' : AvgCollabSimilarityObjects,
+                   'collab-similarity-dist-users' : CollabSimilarityDistUsers,
+                   'collab-similarity-dist-objects' : CollabSimilarityDistObjects,
+                   'collab-similarity-degree-corr-users' : CollabSimilarityDegreeCorrUsers,
+                   'collab-similarity-degree-corr-objects' : CollabSimilarityDegreeCorrObjects,
+                   
                   }
 
 

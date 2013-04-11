@@ -270,7 +270,8 @@ class NetworkX():
     def getClustCoefOpsahlAll(self, ntype):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
 #        nodes = [4]
-        nbrsMap, coefMap, coefDegreeMap = {}, {}, {}
+        nbrsMap, coefMap, coefDgMap = {}, {}, {}
+        degreeCoefMap, degreeCoefDgMap = {}, {}
         total4Paths, totalVal4Paths, total4Cycles, totalVal4Cycles = 0, 0.0, 0, 0.0
         for node in sorted(nodes):
             num4Paths, val4Paths, num4Cycles, val4Cycles = self.__getPathsAndCycles(node, nbrsMap)
@@ -280,18 +281,24 @@ class NetworkX():
             totalVal4Cycles += val4Cycles
 
             if num4Paths>0:
-                coefMap[node] = round(float(num4Cycles) / num4Paths, 6)
-                coefDegreeMap[node] = round(float(val4Cycles) / val4Paths, 6)
-#                if (coefDegreeMap[node] >= coefMap[node]):
-                print "node", node, ":", num4Paths, round(val4Paths,0), num4Cycles, round(val4Cycles, 0), coefMap[node], coefDegreeMap[node]
+                degree = self.G.degree(node)
+                coef = round(float(num4Cycles) / num4Paths, 3)
+                coef_dg = round(float(val4Cycles) / val4Paths, 3)
+                coefMap[node] = coef
+                coefDgMap[node] = coef_dg
+                sum_and_count(degreeCoefMap, degree, coef)
+                sum_and_count(degreeCoefDgMap, degree, coef_dg)
+#                print node, num4Cycles, num4Paths, int(val4Cycles), int(val4Paths)
+#                if (coefDgMap[node] >= coefMap[node]):
+#                print "node", node, ":", num4Paths, round(val4Paths,0), num4Cycles, round(val4Cycles, 0), coefMap[node], coefDgMap[node]
         
-        globalCoef = round(float(total4Cycles) / total4Paths, 6)
-        globalDegreeCoef = round(float(totalVal4Cycles) / totalVal4Paths, 6)
-        return globalCoef, coefMap, globalDegreeCoef, coefDegreeMap
+        globalCoef = round(float(total4Cycles) / total4Paths, 3)
+        globalDgCoef = round(float(totalVal4Cycles) / totalVal4Paths, 3)
+        return globalCoef, globalDgCoef, coefMap, coefDgMap, get_avg_map(degreeCoefMap), get_avg_map(degreeCoefDgMap)
     
     def getClustCoefOpsahlLocal(self, node):
         num4Paths, num4Cycles, _, _ = self.__getPathsAndCycles(node)
-        return round(float(num4Cycles) / num4Paths, 6) if num4Paths > 0 else None
+        return round(float(num4Cycles) / num4Paths, 3) if num4Paths > 0 else None
     
     def __getPathsAndCycles(self, node, nbrsMap={}):
         num4Paths = 0
@@ -301,7 +308,7 @@ class NetworkX():
         
         nbrs = [n for n in self.G[node]]
         for (n1_1, n1_2) in list(itertools.product(nbrs, repeat=2)):
-            if n1_1 == n1_2:
+            if n1_1 >= n1_2:
                 continue
 
             w_n1_1 = self.__degree_weight(self.G.degree(n1_1))
@@ -365,12 +372,12 @@ class NetworkX():
             nodes.extend(self.G.neighbors(n))
         return set(nodes) - set([node])
 
-    def getDegreeClusterCoef(self, node, doprint=False):
+    def getNodeClusterCoefLatapy(self, node, doprint=False):
         if not self.hasNode(node):
             return 0.0
-#        doprint = True if node==597 else False
+#        doprint = True if node==18 else False
         
-        cc_new = 0.0
+        cc_degree = 0.0
         cc_orig = 0.0
         nbrs2=set([u for nbr in self.G[node] for u in self.G[nbr]])-set([node])
 
@@ -384,39 +391,47 @@ class NetworkX():
 #            print "D2 neighbours:", sorted(list(nbrs2))
             neigh_details=[]
         for u in nbrs2:
-            ccuv_new = self.__cc_new(self.G, u, node, doprint)
+            ccuv_degree = self.__cc_degree(self.G, u, node, doprint)
             ccuv_orig = self.__cc_orig(self.G, u, node)
             if doprint:
                 common = len(set(self.G[u]) & set(self.G[node]))
                 if common>1:
-                    neigh_details.append([u, common, round(ccuv_orig,2), round(ccuv_new,2)])
-#                print str(node)+"-"+str(u)+"(" + str(self.G.degree(u)) +"): orig="+str(ccuv_orig) + ", new=" + str(ccuv_new)
-            cc_new += ccuv_new
+                    neigh_details.append([u, common, round(ccuv_orig,2), round(ccuv_degree,2)])
+                print str(node)+"-"+str(u)+": orig="+str(round(ccuv_orig,2)) + ", new=" + str(round(ccuv_degree,2))
+            cc_degree += ccuv_degree
             cc_orig += ccuv_orig
-        if cc_new > 0.0: 
-            cc_new /= len(nbrs2)
+
+        if cc_degree > 0.0: 
+            cc_degree /= len(nbrs2)
         if cc_orig > 0.0: 
             cc_orig /= len(nbrs2)
-
+            
         if doprint:
 #            print "D2 neighbors", neigh_details
-            print "cc new:", str(cc_new)
+            print "cc new:", str(cc_degree)
             print "cc orig:", str(cc_orig)
 
-        return cc_new
+        return cc_orig, cc_degree
 
-    def getGlobalDegreeClusterCoef(self, ntype):
+    def getClusterCoefLatapy(self, ntype):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
-        clustCoefMap = dict()
+        coefMap, coefDgMap = {}, {}
+        degreeCoefMap, degreeCoefDgMap = {}, {}
         for node in nodes:
-            clustCoefMap[node] = self.getDegreeClusterCoef(node)
-        return clustCoefMap
+            degree = self.G.degree(node)
+            cc_orig, cc_degree = self.getNodeClusterCoefLatapy(node)
+            coefMap[node] = cc_orig
+            sum_and_count(degreeCoefMap, degree, cc_orig)
+            coefDgMap[node] = cc_degree
+            sum_and_count(degreeCoefDgMap, degree, cc_degree)
+            
+        return coefMap, coefDgMap, get_avg_map(degreeCoefMap), get_avg_map(degreeCoefDgMap)
     
     def __cc_orig(self, G, u, v):
         nu, nv = set(G[u]), set(G[v])
         return float(len(nu & nv))/len(nu | nv)
 
-    def __cc_new(self, G, u, v, doprint=False):
+    def __cc_degree(self, G, u, v, doprint=False):
         nu, nv = set(G[u]), set(G[v])
         dsum = 0.0
         lsum = 0.0
@@ -429,6 +444,7 @@ class NetworkX():
                 dsum += score
 #            if G.degree(z)>1: 
             lsum += score
+#            lsum += 1
             
         return dsum/lsum
 
@@ -443,4 +459,49 @@ class NetworkX():
     def __degree_weight(self, d):
         discrete_d = int(2+d/10)
         return 1/math.log(discrete_d,2) if d>1 else 0.0
+
+
+    @print_timing
+    def getCollabSimilarityAll(self, ntype):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+#        nodes = [4]
+        simMap = {}
+        degreeSimMap = {}
+        pairMap = {}
+        for node in sorted(nodes):
+            sim = self.getCollabSimilarity(node, pairMap)
+            if sim == None:
+                continue
+            simMap[node] = sim
+            sum_and_count(degreeSimMap, self.G.degree(node)/10, sim)
+        
+        return simMap, get_avg_map(degreeSimMap)
     
+    def getCollabSimilarity(self, node, pairMap):
+        nbrs = [n for n in self.G[node]]
+        sum_sim = 0.0
+        count = 0
+#        print node
+        for (n1_1, n1_2) in list(itertools.product(nbrs, repeat=2)):
+            if n1_1 >= n1_2:
+                continue
+            nid = str(n1_1)+"_"+str(n1_2)
+            if nid in pairMap:
+                sim = pairMap[nid]
+            else:
+                sim = self.__similarity(n1_1, n1_2)
+                pairMap[nid] = sim
+                
+            sum_sim += sim
+            count += 1
+
+        return sum_sim/count if count > 0 else None
+    
+    def __similarity(self, n1, n2):
+        nbrs_n1 = set(self.G[n1])
+        nbrs_n2 = set(self.G[n2])
+        
+        sim = float(len(nbrs_n1 & nbrs_n2)) / len(nbrs_n1 | nbrs_n2)
+#        print n1, n2, round(sim, 3)
+        return sim
+     

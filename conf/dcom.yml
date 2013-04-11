@@ -2,11 +2,14 @@
 #metrics-columns: date,nodes-count,new-nodes,links-count,avg-node-degree,avg-node-strength,avg-node-lifetime,avg-new-link-shortest-path,degree-distribution
 
 
-metrics-columns: date,avg-clust-coef-opsahl
-store-modules: clust-coef-opsahl
+metrics-columns: date,collab-similarity-degree-corr-objects
+store-modules: collab-similarity-objects
 
-#metrics-columns: date,local-clust-coef,local-clust-coef-degree
+#metrics-columns: date,latapy-avg-clust-coef-users,opsahl-avg-clust-coef-users,latapy-clust-coef-dist-users,opsahl-clust-coef-dist-users,latapy-clust-coef-degree-corr-users,opsahl-clust-coef-degree-corr-users
+#store-modules: latapy-clust-coef-users,opsahl-clust-coef-users
 
+#metrics-columns: date,latapy-clust-coef-dist-objects,opsahl-clust-coef-dist-objects
+#store-modules: latapy-clust-coef-objects,opsahl-clust-coef-objects
 
 
 # Relative metrics columns
@@ -36,12 +39,24 @@ metrics-modules:
     clust-coef:
         title: Clustering coefficient map
          
-    clust-coef-opsahl:
-        title: Clustering coefficient map - Opsahl
+    opsahl-clust-coef-users:
+        title: Clustering coefficient maps for users - Opsahl
          
-    clust-coef-degree:
-        title: Degree-based clustering coefficient map
+    opsahl-clust-coef-objects:
+        title: Clustering coefficient maps for objects - Opsahl
          
+    latapy-clust-coef-users:
+        title: Clustering coefficient maps for users - Latapy
+         
+    latapy-clust-coef-objects:
+        title: Clustering coefficient maps for objects - Latapy
+
+    collab-similarity-users:
+        title: Collaborative similarity of users
+    
+    collab-similarity-objects:
+        title: Collaborative similarity of objects
+    
     date:
         title: Date
         
@@ -91,30 +106,91 @@ metrics-modules:
         title: Degree-avg degree corr 1,Degree-avg degree corr 2
         depends: avg-neighbour-degree
         
+
+    avg-clust-coef:
+        title: Avg clust coef 1
+        depends: clust-coef
+
     clust-coef-distribution:
         title: Clust coef distribution 1,Clust coef distribution 2
         depends: nodes-degrees,clust-coef
     
-    degree-clust-coef-correlation:
-        title: Degree clust coef correlation 1,Degree clust coef correlation 2
-        depends: nodes-degrees,clust-coef
+
+    latapy-avg-clust-coef-users:
+        title: Latapy - avg clust coef users, Latapy dg - avg clust coef users
+        depends: latapy-clust-coef-users
+
+    latapy-avg-clust-coef-objects:
+        title: Latapy - avg clust coef objects, Latapy dg - avg clust coef objects
+        depends: latapy-clust-coef-objects
+
+    latapy-clust-coef-degree-corr-users:
+        title: Latapy - clust coef degree corr users,Latapy dg - clust coef degree corr users
+        depends: latapy-clust-coef-users
         
-    avg-clust-coef:
-        title: Avg clustering coef 1,Avg clustering coef 2
-        depends: clust-coef
-
-    avg-clust-coef-degree:
-        title: Avg degree clustering coef 1, Avg difference 1
-        depends: clust-coef-degree
-
-    avg-clust-coef-opsahl:
-        title: Opsahl clustering coef 1,Opsahl clustering coef 2,Opsahl degree clustering coef 1,Opsahl degree clustering coef 2
-        depends: clust-coef-opsahl
-
-    local-clust-coef:
-        title: Local clustering coef 6
+    latapy-clust-coef-dist-users:
+        title: Latapy - clust coef dist users,Latapy dg - clust coef dist users
+        depends: latapy-clust-coef-users
+        
+    latapy-clust-coef-dist-objects:
+        title: Latapy - clust coef dist objects,Latapy dg - clust coef dist objects
+        depends: latapy-clust-coef-objects
+        
+    latapy-clust-coef-degree-corr-objects:
+        title: Latapy - clust coef degree corr objects,Latapy dg - clust coef degree corr objects
+        depends: latapy-clust-coef-objects
+        
+    latapy-local-clust-coef:
+        title: Latapy - local clustering coef 6,Latapy dg - local clustering coef 6
         nodeid: 6
 
-    local-clust-coef-degree:
-        title: Local degree clustering coef 6
-        nodeid: 6
+
+    opsahl-avg-clust-coef-users:
+        title: Opsahl - clust coef users,Opsahl dg - clust coef users
+        depends: opsahl-clust-coef-users
+
+    opsahl-avg-clust-coef-objects:
+        title: Opsahl - clust coef objects,Opsahl dg - clust coef objects
+        depends: opsahl-clust-coef-objects
+
+    opsahl-clust-coef-dist-users:
+        title: Opsahl - clust coef dist users,Opsahl dg - clust coef dist users
+        depends: opsahl-clust-coef-users
+        
+    opsahl-clust-coef-dist-objects:
+        title: Opsahl - clust coef dist objects,Opsahl dg - clust coef dist objects
+        depends: opsahl-clust-coef-objects
+        
+    opsahl-clust-coef-degree-corr-users:
+        title: Opsahl - clust coef degree corr users,Opsahl dg - clust coef degree corr users
+        depends: opsahl-clust-coef-users
+        
+    opsahl-clust-coef-degree-corr-objects:
+        title: Opsahl - clust coef degree corr objects,Opsahl dg - clust coef degree corr objects
+        depends: opsahl-clust-coef-objects
+        
+    avg-collab-similarity-users:
+        title: Avg collab similarity users
+        depends: collab-similarity-users
+
+    avg-collab-similarity-objects:
+        title: Avg collab similarity objects
+        depends: collab-similarity-objects
+
+    collab-similarity-dist-users:
+        title: Collab similarity dist users
+        depends: collab-similarity-users
+
+    collab-similarity-dist-objects:
+        title: Collab similarity dist objects
+        depends: collab-similarity-objects
+
+    collab-similarity-degree-corr-users:
+        title: Collab similarity degree corr users
+        depends: collab-similarity-users
+
+    collab-similarity-degree-corr-objects:
+        title: Collab similarity degree corr objects
+        depends: collab-similarity-objects
+
+        

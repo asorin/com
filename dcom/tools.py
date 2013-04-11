@@ -61,7 +61,7 @@ def sum_and_count(vmap, key, val, count=1):
 
 def get_avg_map(vmap, rnd=1):
     for k, v in vmap.iteritems():
-        vmap[k] = 1.0*v[0]/v[1]
+        vmap[k] = round(1.0*v[0]/v[1], 3)
     return vmap
 
 def update_lifetime(key, vmap, vmapAll, curTs):
