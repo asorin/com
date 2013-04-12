@@ -31,15 +31,15 @@ class NetworkX():
             self.metrics = None
         self.partition = None
 
-    def addLink(self, nodeA, nodeB, ts=None):
+    def addLink(self, nodeA, nodeB, ts=None, weight=1):
         
         if not self.metrics is None:
             self.metrics.newEventPre(nodeA, nodeB, ts)
         
         hadNodeA = nodeA in self.G
         hadNodeB = nodeB in self.G
-        
-        self.G.add_edge(nodeA, nodeB, timestamp=ts)
+
+        self.G.add_edge(nodeA, nodeB, timestamp=ts, weight=weight)
         
         self.__updateNode(nodeA, 0, ts, hadNodeA)
         self.__updateNode(nodeB, 1, ts, hadNodeB)
@@ -504,4 +504,14 @@ class NetworkX():
         sim = float(len(nbrs_n1 & nbrs_n2)) / len(nbrs_n1 | nbrs_n2)
 #        print n1, n2, round(sim, 3)
         return sim
-     
+
+    def transformTfIdf(self, outf):
+        N_users = float(len(set(n for n,d in self.G.nodes(data=True) if d["type"]==0)))
+        for e in self.G.edges_iter(data=True):
+            n = float(int(e[2]['weight']))
+#            d_user = self.G.degree(e[0])
+            d_user = self.G.degree(e[0], weight='weight')
+            d_object = self.G.degree(e[1])
+            w = (n/d_user) * math.log(N_users/d_object, 2)
+            outf.write( "%s\t%s\t0\t%.3f\n" % (e[0], e[1], w))
+

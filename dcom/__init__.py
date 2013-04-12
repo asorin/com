@@ -108,9 +108,14 @@ def do_save(options):
     outf = options['output_file']
     node = options['node']
     net.save(outf, node)
+
+def do_transform(options):
+    net = options['network']
+    outf = options['output_file']
+    net.transformTfIdf(outf)
         
 def main(args):
-    actions = { "metrics" : do_metrics, "partition" : do_partition, "save" : do_save }
+    actions = { "metrics" : do_metrics, "partition" : do_partition, "save" : do_save, "transform" : do_transform }
     options = vars(parse_args(args or sys.argv[1:]))
     
     if not options['action'] in actions:
@@ -141,7 +146,7 @@ def main(args):
         
         net.setPartition(src.partition)
         for link in src.links:
-            net.addLink(link[0], link[1], link[2])
+            net.addLink(link[0], link[1], link[2], link[3])
         net.flush()
         options['network'] = net
         options['source'] = src

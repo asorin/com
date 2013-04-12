@@ -45,12 +45,16 @@ class NetSource():
                 raise CommunitySourceError("Invalid number of fields: %d" % len(row))
             nodeA = row[0]                 
             nodeB = row[1]
+            ts = 0
+            weight = 1
             if len(row)>2:
                 ts = int(row[2])/1000
 #                ts = datetime.utcfromtimestamp(float(row[2])/1000)
 #            else:
 #                ts = datetime.now()
-            self.links.append((int(nodeA), int(nodeB), ts))
+                if len(row)>3:
+                    weight = int(row[3])
+            self.links.append((int(nodeA), int(nodeB), ts, weight))
         
         f.close()
 
