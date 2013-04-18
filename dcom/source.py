@@ -53,7 +53,7 @@ class NetSource():
 #            else:
 #                ts = datetime.now()
                 if len(row)>3:
-                    weight = int(row[3])
+                    weight = float(row[3])
             self.links.append((int(nodeA), int(nodeB), ts, weight))
         
         f.close()

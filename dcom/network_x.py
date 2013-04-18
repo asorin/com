@@ -9,6 +9,7 @@ import time
 
 from tools import sum_and_count
 from tools import get_avg_map
+from tools import distribution_list
 from dcom.tools import check_and_increment
 
 def print_timing(func):
@@ -75,6 +76,12 @@ class NetworkX():
     def getPartition(self):
         return self.partition
     
+    def getPrjModularity(self, ntype):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        prjG = bipartite.projected_graph(self.G, nodes)
+        partition = louvain.best_partition(prjG)
+        return louvain.modularity(partition, prjG)
+        
     def hasNode(self, node):
         return node in self.G
     
@@ -93,6 +100,20 @@ class NetworkX():
     def getDegrees(self):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==1)
         return bipartite.degrees(self.G, nodes)
+    
+    def getWeightsDist(self):
+        weights_list = [attr['weight'] for _,_,attr in self.G.edges(data=True)]
+        return distribution_list(weights_list, 0.01)
+    
+    def getDegreeWeightMap(self):
+        weightsCorrMaps = [{}, {}]
+        for n1, n2, attr in self.G.edges(data=True):
+            w = attr['weight']
+            dn1 = self.G.degree(n1)
+            sum_and_count(weightsCorrMaps[0], dn1, w)
+            dn2 = self.G.degree(n2)
+            sum_and_count(weightsCorrMaps[1], dn2, w)
+        return get_avg_map(weightsCorrMaps[0]), get_avg_map(weightsCorrMaps[1])
     
     def getNodesCount(self, ntype):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
@@ -269,7 +290,6 @@ class NetworkX():
     @print_timing
     def getClustCoefOpsahlAll(self, ntype):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
-#        nodes = [4]
         nbrsMap, coefMap, coefDgMap = {}, {}, {}
         degreeCoefMap, degreeCoefDgMap = {}, {}
         total4Paths, totalVal4Paths, total4Cycles, totalVal4Cycles = 0, 0.0, 0, 0.0
@@ -281,6 +301,7 @@ class NetworkX():
             totalVal4Cycles += val4Cycles
 
             if num4Paths>0:
+#                print node, val4Paths, val4Cycles
                 degree = self.G.degree(node)
                 coef = round(float(num4Cycles) / num4Paths, 3)
                 coef_dg = round(float(val4Cycles) / val4Paths, 3)
@@ -297,7 +318,7 @@ class NetworkX():
         return globalCoef, globalDgCoef, coefMap, coefDgMap, get_avg_map(degreeCoefMap), get_avg_map(degreeCoefDgMap)
     
     def getClustCoefOpsahlLocal(self, node):
-        num4Paths, num4Cycles, _, _ = self.__getPathsAndCycles(node)
+        num4Paths, _, num4Cycles, _ = self.__getPathsAndCycles(node)
         return round(float(num4Cycles) / num4Paths, 3) if num4Paths > 0 else None
     
     def __getPathsAndCycles(self, node, nbrsMap={}):
@@ -310,9 +331,11 @@ class NetworkX():
         for (n1_1, n1_2) in list(itertools.product(nbrs, repeat=2)):
             if n1_1 >= n1_2:
                 continue
-
-            w_n1_1 = self.__degree_weight(self.G.degree(n1_1))
-            w_n1_2 = self.__degree_weight(self.G.degree(n1_2))
+            
+#            w_n1_1 = self.__degree_weight(self.G.degree(n1_1))
+#            w_n1_2 = self.__degree_weight(self.G.degree(n1_2))
+            pathWeight = self.G[node][n1_1]['weight']
+            pathWeight += self.G[node][n1_2]['weight']
 
             nbrs2_1 = set(self.G[n1_1])-set([node])
             nbrs2_2 = set(self.G[n1_2])-set([node])
@@ -321,23 +344,30 @@ class NetworkX():
             n4Paths = len(nbrs2_1) * len(nbrs2_2) - len(nbrs2_common)
 
             num4Paths += n4Paths
-            val4Paths += (n4Paths * (float(w_n1_1 + w_n1_2)/2))
+#            val4Paths += (n4Paths * (float(w_n1_1 + w_n1_2)/2))
             
-            n4Cycles, v4Cycles = self.__getCycles(nbrs2_1, nbrs2_2, n1_1, n1_2, nbrsMap)
+            v4Paths, n4Cycles, v4Cycles = self.__getCycles(nbrs2_1, nbrs2_2, n1_1, n1_2, nbrsMap, pathWeight)
             num4Cycles += n4Cycles
             val4Cycles += v4Cycles
+            val4Paths += v4Paths
 
         return num4Paths, val4Paths, num4Cycles, val4Cycles
 
-    def __getCycles(self, nbrs2_1, nbrs2_2, n1_1, n1_2, nbrsMap):
+    def __getCycles(self, nbrs2_1, nbrs2_2, n1_1, n1_2, nbrsMap, pathWeight):
+        val4Paths = 0
         num4Cycles = 0
         val4Cycles = 0
-        w_n1_1 = self.__degree_weight(self.G.degree(n1_1))
-        w_n1_2 = self.__degree_weight(self.G.degree(n1_2))
+#        w_n1_1 = self.__degree_weight(self.G.degree(n1_1))
+#        w_n1_2 = self.__degree_weight(self.G.degree(n1_2))
         
         for (n2_1, n2_2) in list(itertools.product(nbrs2_1, nbrs2_2)):
             if n2_1 == n2_2:
                 continue
+            
+#            pathWeight += self.G[n1_1][n2_1]['weight']
+#            pathWeight += self.G[n1_2][n2_2]['weight']
+            pathWeight+=1
+            val4Paths += float(pathWeight)*0.001
             
             if n2_1<n2_2:
                 nmin, nmax = n2_1, n2_2
@@ -347,23 +377,25 @@ class NetworkX():
             nbrid = (nmax<<32) + nmin
             if not nbrid in nbrsMap:
                 nbrs3_common = set(self.G[n2_1]) & set(self.G[n2_2])
-                common_weight = self.__degree_weight_nodes(nbrs3_common) if len(nbrs3_common)>0 else 0
-                nbrsMap[nbrid] = (common_weight, nbrs3_common)
+#                common_weight = self.__degree_weight_nodes(n2_1, n2_2, nbrs3_common) if len(nbrs3_common)>0 else 0
+#                nbrsMap[nbrid] = (common_weight, nbrs3_common)
+                nbrsMap[nbrid] = nbrs3_common
             else:
-                (common_weight, nbrs3_common) = nbrsMap[nbrid]
+#                (common_weight, nbrs3_common) = nbrsMap[nbrid]
+                nbrs3_common = nbrsMap[nbrid]
             
             common_len = len(nbrs3_common)
             if n1_1 in nbrs3_common:
                 common_len -= 1
-                common_weight -= w_n1_1
+#                common_weight -= w_n1_1
             if n1_2 in nbrs3_common:
                 common_len -= 1
-                common_weight -= w_n1_2
+#                common_weight -= w_n1_2
             if common_len>0:
                 num4Cycles += 1
-                val4Cycles += (float(common_weight + w_n1_1 + w_n1_2) / 3)
+                val4Cycles += float(pathWeight)*0.001
 
-        return num4Cycles, val4Cycles
+        return val4Paths, num4Cycles, val4Cycles
 
 
     def getD2Neighbors(self, node):
@@ -437,21 +469,25 @@ class NetworkX():
         lsum = 0.0
         nu_and_nv = nu & nv
         for z in nu | nv:
-            score = self.__degree_weight(G.degree(z))
+#            score = self.__degree_weight(G.degree(z))
             if z in nu_and_nv:
+                score = float(self.G[u][z]['weight'] + self.G[v][z]['weight'])/2
 #                if doprint:
 #                    print "D" + str(z) + "=" + str(G.degree(z)) + ", " + str(self.__degree_weight(G.degree(z)))
                 dsum += score
+            else:
+                score = self.G[u][z]['weight'] if z in self.G[u] else self.G[v][z]['weight']
 #            if G.degree(z)>1: 
             lsum += score
 #            lsum += 1
             
         return dsum/lsum
 
-    def __degree_weight_nodes(self, nodes):
+    def __degree_weight_nodes(self, n1, n2, nodes):
         w_max = 0
         for node in nodes:
-            w_node = self.__degree_weight(self.G.degree(node))
+#            w_node = self.__degree_weight(self.G.degree(node))
+            w_node = self.G[n1][node]['weight'] + self.G[n2][node]['weight']
             if w_node > w_max:
                 w_max = w_node
         return w_max
@@ -506,12 +542,26 @@ class NetworkX():
         return sim
 
     def transformTfIdf(self, outf):
-        N_users = float(len(set(n for n,d in self.G.nodes(data=True) if d["type"]==0)))
-        for e in self.G.edges_iter(data=True):
-            n = float(int(e[2]['weight']))
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==0)
+        N_users = float(len(nodes))
+        print "Calculate maximum frequency"
+        maxFreqMap = self.__maxNodeFreqMap(nodes)
+        print "Starting transformation"
+        for ue in self.G.edges_iter(data=True):
+            e = sorted(ue)
+            w_edge = float(int(e[2]['weight']))
 #            d_user = self.G.degree(e[0])
-            d_user = self.G.degree(e[0], weight='weight')
+            dw_user = self.G.degree(e[0], weight='weight')
             d_object = self.G.degree(e[1])
-            w = (n/d_user) * math.log(N_users/d_object, 2)
+            f_edge = w_edge/dw_user
+            maxf_user = maxFreqMap[e[0]]
+            w = (f_edge/maxf_user) * math.log(N_users/d_object, 2)
             outf.write( "%s\t%s\t0\t%.3f\n" % (e[0], e[1], w))
 
+    def __maxNodeFreqMap(self, nodes):
+        maxFreqMap = {}
+        for node in nodes:
+            maxw = max([float(attr['weight'])/self.G.degree(n, weight='weight') for n,_,attr in self.G.edges(node, data=True)])
+            maxFreqMap[node] = maxw
+        return maxFreqMap
+    

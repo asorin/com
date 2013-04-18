@@ -374,6 +374,43 @@ class CollabSimilarityObjects(CollabSimilarity):
 
 
 """
+Projected network modularity - Louvain method
+Users and objects
+"""
+
+class PrjModularity(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.prjMod = {}
+        self.ntype = ntype
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        self.prjMod[ts] = self.net.getPrjModularity(self.ntype)
+
+    def get_values(self, ts):
+        return [self.prjMod[ts]]
+
+
+class PrjModularityUsers(PrjModularity):
+    def __init__(self, conf):
+        PrjModularity.__init__(self, conf, 0)
+
+class PrjModularityObjects(PrjModularity):
+    def __init__(self, conf):
+        PrjModularity.__init__(self, conf, 1)
+
+
+"""
 Main metrics modules 
 """
 
@@ -604,6 +641,53 @@ class AvgNewLinkShortestPath(MetricsModule):
             return [round(scipy.mean(self.linkShortestPath[ts]), 3),]
         else:
             return []
+
+class LinkWeightsDistribution(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.weightsDist = dict()
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+    
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        self.weightsDist[ts] = self.net.getWeightsDist()
+        pass
+
+    def get_values(self, ts):
+        return [return_from_map(self.weightsDist, ts)]
+
+
+class LinkDegreeWeightCorrelation(MetricsModule):
+
+    def __init__(self, conf):
+        MetricsModule.__init__(self, conf)
+        self.weightsCorr = [dict(), dict()]
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+    
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        dwMap1, dwMap2 = self.net.getDegreeWeightMap()
+        self.weightsCorr[0][ts] = correlation_list(dwMap1)
+        self.weightsCorr[1][ts] = correlation_list(dwMap2)
+
+    def get_values(self, ts):
+        return [return_from_map(self.weightsCorr[0], ts), return_from_map(self.weightsCorr[1], ts)]
+
 
 class DegreeDistribution(MetricsModule):
 
@@ -1187,6 +1271,8 @@ metrics_modules = {# store modules
                    'avg-node-strength' : AvgNodesStrength,
                    'avg-node-lifetime' : AvgNodeLifetime,
                    'links-count' : LinksCount,
+                   'link-weights-distribution' : LinkWeightsDistribution,
+                   'link-degree-weight-correlation' : LinkDegreeWeightCorrelation,
                    'avg-new-link-shortest-path' : AvgNewLinkShortestPath,
                    'degree-distribution' : DegreeDistribution,
                    'hubs-singles-distribution' : HubsSinglesDistribution,
@@ -1219,6 +1305,9 @@ metrics_modules = {# store modules
                    'collab-similarity-dist-objects' : CollabSimilarityDistObjects,
                    'collab-similarity-degree-corr-users' : CollabSimilarityDegreeCorrUsers,
                    'collab-similarity-degree-corr-objects' : CollabSimilarityDegreeCorrObjects,
+                   
+                   'prj-modularity-users' : PrjModularityUsers,
+                   'prj-modularity-objects' : PrjModularityObjects,
                    
                   }
 

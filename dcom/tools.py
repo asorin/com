@@ -26,15 +26,17 @@ def return_from_map(vmap, key):
     return vmap[key] if key in vmap else None
     
 def distribution(vmap, binsz=1, maxv=0):
-    d = vmap.values()
-    if len(d)==0:
+    return distribution_list(vmap.values(), binsz, maxv)
+
+def distribution_list(vlist, binsz=1, maxv=0):
+    if len(vlist)==0:
         return "None"
-    max_d = max(d)
+    max_d = max(vlist)
     if max_d == 0:
         return "0"
     if maxv!=0:
         max_d = maxv
-    hist = numpy.histogram(d, [x * binsz for x in range(0, 1+int(max_d/binsz))], (0, max_d), False, None, True)[0]
+    hist = numpy.histogram(vlist, [x * binsz for x in range(0, 1+int(max_d/binsz))], (0, max_d), False, None, True)[0]
 #    rndhist = map(round, hist, [3]*len(hist))
     return ",".join(map(_str_nozero, hist)) 
 #    numpy.histogram(d, [x * 0.1 for x in range(0, 10)], (0, 1), False)[0])

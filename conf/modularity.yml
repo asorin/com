@@ -1,0 +1,11 @@
+metrics-columns: date,prj-modularity-users,prj-modularity-objects
+
+metrics-modules:
+    date:
+        title: Date
+        
+    prj-modularity-users:
+        title: Prj modularity users
+
+    prj-modularity-objects:
+        title: Prj modularity objects

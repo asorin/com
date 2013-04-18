@@ -1,9 +1,10 @@
 # Absolute metrics columns
 #metrics-columns: date,nodes-count,new-nodes,links-count,avg-node-degree,avg-node-strength,avg-node-lifetime,avg-new-link-shortest-path,degree-distribution
 
+metrics-columns: date,prj-modularity-users,prj-modularity-objects
 
-metrics-columns: date,collab-similarity-degree-corr-objects
-store-modules: collab-similarity-objects
+#metrics-columns: date,opsahl-avg-clust-coef-objects,latapy-avg-clust-coef-objects
+#store-modules: opsahl-clust-coef-objects,latapy-clust-coef-objects
 
 #metrics-columns: date,latapy-avg-clust-coef-users,opsahl-avg-clust-coef-users,latapy-clust-coef-dist-users,opsahl-clust-coef-dist-users,latapy-clust-coef-degree-corr-users,opsahl-clust-coef-degree-corr-users
 #store-modules: latapy-clust-coef-users,opsahl-clust-coef-users
@@ -86,6 +87,12 @@ metrics-modules:
     links-count:
         title: Link events,Reinforced links 
     
+    link-weights-distribution:
+        title: Link Weights distribution
+    
+    link-degree-weight-correlation:
+        title: Degree-weights corr 1,Degree-weights corr 2
+
     degree-distribution:
         title: Degree distribution 1,Degree distribution 2
         depends: nodes-degrees
@@ -193,4 +200,8 @@ metrics-modules:
         title: Collab similarity degree corr objects
         depends: collab-similarity-objects
 
-        
+    prj-modularity-users:
+        title: Prj modularity users
+
+    prj-modularity-objects:
+        title: Prj modularity objects
