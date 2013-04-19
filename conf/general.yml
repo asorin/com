@@ -1,0 +1,52 @@
+metrics-columns: date,nodes-count,new-nodes,links-count,prj-links-count-users,prj-links-count-objects,avg-node-degree,avg-node-strength,avg-node-lifetime,degree-distribution,degree-avg-neighbour-degree-correlation
+
+store-modules: nodes-degrees,nodes-strength,avg-neighbour-degree
+
+metrics-modules:
+
+    nodes-degrees:
+        title: Nodes degree map
+        
+    nodes-strength:
+        title: Nodes strength map
+
+    avg-neighbour-degree:
+        title: Maps of nodes-degrees and avg neighbour degree
+
+    date:
+        title: Date
+        
+    nodes-count:
+        title: Nodes count users,Nodes count objects
+    
+    links-count:
+        title: Link events,Reinforced links 
+    
+    new-nodes:
+        title: New nodes users,New nodes objects
+    
+    avg-node-degree:
+        title: Avg node degree users,Avg node degree objects
+        depends: nodes-degrees
+
+    avg-node-strength:
+        title: Avg node strength users,Avg node strength objects
+        depends: nodes-strength
+    
+    avg-node-lifetime:
+        title: Avg node lifetime users,Avg node lifetime objects
+
+    prj-links-count-users:
+        title: Links count prj users
+
+    prj-links-count-objects:
+        title: Links count prj objects
+
+    degree-avg-neighbour-degree-correlation:
+        title: Corr degree - avg-degree users,Corr degree - avg-degree objects
+        depends: avg-neighbour-degree
+
+    degree-distribution:
+        title: Degree distribution users,Degree distribution objects
+        depends: nodes-degrees
+

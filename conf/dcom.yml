@@ -205,3 +205,9 @@ metrics-modules:
 
     prj-modularity-objects:
         title: Prj modularity objects
+
+    prj-links-count-users:
+        title: Links count prj users
+
+    prj-links-count-objects:
+        title: Links count prj objects

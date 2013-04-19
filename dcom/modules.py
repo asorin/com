@@ -411,6 +411,43 @@ class PrjModularityObjects(PrjModularity):
 
 
 """
+Links count for projected network
+Users and objects
+"""
+
+class PrjLinksCount(MetricsModule):
+
+    def __init__(self, conf, ntype):
+        MetricsModule.__init__(self, conf)
+        self.prjLinksCount = {}
+        self.ntype = ntype
+
+    def reset(self, ts):
+        pass
+
+    def update_link(self, nodeA, nodeB, ts):
+        pass
+
+    def update_node(self, node, ntype, ts):
+        pass
+
+    def update_from_network(self, ts):
+        self.prjLinksCount[ts] = self.net.getPrjLinksCount(self.ntype)
+
+    def get_values(self, ts):
+        return [self.prjLinksCount[ts]]
+
+
+class PrjLinksCountUsers(PrjLinksCount):
+    def __init__(self, conf):
+        PrjLinksCount.__init__(self, conf, 0)
+
+class PrjLinksCountObjects(PrjLinksCount):
+    def __init__(self, conf):
+        PrjLinksCount.__init__(self, conf, 1)
+
+
+"""
 Main metrics modules 
 """
 
@@ -1308,7 +1345,8 @@ metrics_modules = {# store modules
                    
                    'prj-modularity-users' : PrjModularityUsers,
                    'prj-modularity-objects' : PrjModularityObjects,
-                   
+                   'prj-links-count-users' : PrjLinksCountUsers,
+                   'prj-links-count-objects' : PrjLinksCountObjects,
                   }
 
 

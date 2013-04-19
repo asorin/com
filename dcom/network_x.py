@@ -78,10 +78,17 @@ class NetworkX():
     
     def getPrjModularity(self, ntype):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        print "Project network to nodes " + str(ntype)
         prjG = bipartite.projected_graph(self.G, nodes)
+        print "Detect communities for network with %d links" % (prjG.size())
         partition = louvain.best_partition(prjG)
+        print "Calculate modularity"
         return louvain.modularity(partition, prjG)
         
+    def getPrjLinksCount(self, ntype):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        return bipartite.projected_graph(self.G, nodes).size()
+
     def hasNode(self, node):
         return node in self.G
     
