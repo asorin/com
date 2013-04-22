@@ -9,6 +9,22 @@ echo "$1: " `tail -1 $1 | awk -F"\t" '{for (i=1;i<=NF;i++) print $i}'`
 fi
 }
 
+output_info_general()
+{
+lines=`cat $1 | wc -l`
+if [ $lines -gt 1 ]; then
+echo "$1: " `tail -1 $1 | awk -F"\t" '{print " prj_users="$8", prj_objects="$9}'`
+fi
+}
+
+output_info_modularity()
+{
+lines=`cat $1 | wc -l`
+if [ $lines -gt 1 ]; then
+echo "$1: " `tail -1 $1 | awk -F"\t" '{print " mod_users="$2", mod_objects="$3}'`
+fi
+}
+
 module=$1
 categ=$2
 data=$3
@@ -31,7 +47,7 @@ mkdir -p $dir_output
 
 echo Processing $file > $log 
 bin/dcom $conf -l $file -o $file_output >> $log
-output_info $file_output
+output_info_$module $file_output
 
 thresholds="0.05 0.1 0.5 0.7 1 2 3"
 for thr in $thresholds
@@ -40,6 +56,6 @@ do
   thr_file_output=${dir_output}/output_${data}_tfidf_thr_${thr}_${module}.csv
   echo Processing $thr_file >> $log
   bin/dcom $conf -l $thr_file -o $thr_file_output >> $log
-  output_info $thr_file_output
+  output_info_$module $thr_file_output
 done
 

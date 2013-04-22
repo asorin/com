@@ -1,4 +1,4 @@
-metrics-columns: date,prj-modularity-objects
+metrics-columns: date,prj-modularity-users,prj-modularity-objects
 
 metrics-modules:
     date:
