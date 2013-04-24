@@ -49,11 +49,21 @@ echo Processing $file > $log
 bin/dcom $conf -l $file -o $file_output >> $log
 output_info_$module $file_output
 
+linksDataFile=`wc -l $file | cut -d' ' -f1`
+
 thresholds="0.05 0.1 0.5 0.7 1 2 3"
+#thresholds="3 4 5 6 7"
 for thr in $thresholds
 do
   thr_file=${data_tfidf}_thr_${thr}.dat
+  linksThrFile=`wc -l $thr_file | cut -d' ' -f1`
   thr_file_output=${dir_output}/output_${data}_tfidf_thr_${thr}_${module}.csv
+
+  if [[ $linksThrFile -ge $linksDataFile ]]; then
+    echo "Skipping $thr_file: $linksThrFile" >> $log
+    continue
+  fi
+
   echo Processing $thr_file >> $log
   bin/dcom $conf -l $thr_file -o $thr_file_output >> $log
   output_info_$module $thr_file_output

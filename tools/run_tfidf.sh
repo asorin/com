@@ -29,6 +29,8 @@ fi
 network_info $file_tfidf
 
 thresholds="0.05 0.1 0.5 0.7 1 2 3"
+#thresholds="3 4 5 6 7"
+
 for thr in $thresholds
 do
   thr_file=${data_tfidf}_thr_${thr}.dat

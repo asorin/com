@@ -556,13 +556,15 @@ class NetworkX():
         print "Starting transformation"
         for ue in self.G.edges_iter(data=True):
             e = sorted(ue)
-            w_edge = float(int(e[2]['weight']))
-#            d_user = self.G.degree(e[0])
-            dw_user = self.G.degree(e[0], weight='weight')
             d_object = self.G.degree(e[1])
+            
+            w_edge = float(int(e[2]['weight']))
+            dw_user = self.G.degree(e[0], weight='weight')
             f_edge = w_edge/dw_user
             maxf_user = maxFreqMap[e[0]]
-            w = (f_edge/maxf_user) * math.log(N_users/d_object, 2)
+            tf = f_edge/maxf_user
+#            tf = 1
+            w = tf * math.log(N_users/d_object, 2)
             outf.write( "%s\t%s\t0\t%.3f\n" % (e[0], e[1], w))
 
     def __maxNodeFreqMap(self, nodes):

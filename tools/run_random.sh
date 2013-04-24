@@ -1,6 +1,15 @@
 #!/bin/bash
 set -e 
 
+network_info()
+{
+users=`cat $1 | awk '{print $1}' | sort -n | uniq | wc -l`
+objects=`cat $1 | awk '{print $2}' | sort -n | uniq | wc -l`
+links=`cat $1 | wc -l`
+echo "$1 users=$users objects=$objects links=$links"
+
+}
+
 output_info()
 {
 lines=`cat $1 | wc -l`
@@ -51,6 +60,7 @@ log=log/output.log
 
 >$log
 thresholds="0.05 0.1 0.5 0.7 1 2 3"
+#thresholds="3 4 5 6 7"
 for thr in $thresholds
 do
   thr_file=${data_tfidf}_thr_${thr}.dat
@@ -63,7 +73,8 @@ do
   fi
   # generate random files
   tools/randfilter.py $file $linksToRm $random_file >> $log
-
+  network_info $random_file
+  
   # calculate stuff
   for module in $modules; do
     random_file_output=${dir_output}/output_random_${data}_tfidf_thr_${thr}_${module}.csv
