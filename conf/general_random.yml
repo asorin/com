@@ -1,6 +1,4 @@
-metrics-columns: date,nodes-count,new-nodes,links-count,prj-links-count-users,prj-links-count-objects,avg-node-degree,avg-node-strength,avg-node-lifetime,degree-distribution,degree-avg-neighbour-degree-correlation
-
-store-modules: nodes-degrees,nodes-strength,avg-neighbour-degree
+metrics-columns: date,nodes-count,new-nodes,links-count,prj-links-count-users,prj-links-count-objects
 
 metrics-modules:
 

@@ -18,7 +18,7 @@ echo "$1: " `tail -1 $1 | awk -F"\t" '{for (i=1;i<=NF;i++) print $i}'`
 fi
 }
 
-output_info_general()
+output_info_general_random()
 {
 lines=`cat $1 | wc -l`
 if [ $lines -gt 1 ]; then
@@ -34,12 +34,14 @@ echo "$1: " `tail -1 $1 | awk -F"\t" '{print " mod_users="$2", mod_objects="$3}'
 fi
 }
 
-mod=$1
-categ=$2
-data=$3
+idx=$1
+mod=$2
+categ=$3
+data=$4
+thresholds=$5
 
 if [ "$mod" = "all" ]; then
-  modules="modularity general"
+  modules="modularity general_random"
 else
   modules=$mod
 fi
@@ -47,8 +49,8 @@ fi
 in_data=data/$categ/${data}
 file=${in_data}.dat
 
-dir_random=data/$categ/random
-dir_output=data/$categ/random/output
+dir_random=data/$categ/random/$idx
+dir_output=data/$categ/random/$idx/output
 mkdir -p $dir_output
 
 dir_tfidf=data/$categ/tfidf
@@ -58,9 +60,10 @@ linksDataFile=`wc -l $file | cut -d' ' -f1`
 
 log=log/output.log
 
->$log
-thresholds="0.05 0.1 0.5 0.7 1 2 3"
-#thresholds="3 4 5 6 7"
+if [ -z "$thresholds" ]; then
+  thresholds="0.05 0.1 0.5 0.7 1 2 3"
+fi
+
 for thr in $thresholds
 do
   thr_file=${data_tfidf}_thr_${thr}.dat

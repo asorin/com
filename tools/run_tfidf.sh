@@ -12,6 +12,7 @@ echo "$1 users=$users objects=$objects links=$links"
 
 categ=$1
 data=$2
+thresholds=$3
 
 in_data=data/$categ/${data}
 file=${in_data}.dat
@@ -28,8 +29,9 @@ fi
 
 network_info $file_tfidf
 
-thresholds="0.05 0.1 0.5 0.7 1 2 3"
-#thresholds="3 4 5 6 7"
+if [ -z "$thresholds" ]; then
+  thresholds="0.05 0.1 0.5 0.7 1 2 3"
+fi
 
 for thr in $thresholds
 do
