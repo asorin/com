@@ -1,6 +1,11 @@
-metrics-columns: date,latapy-avg-clust-coef-objects,latapy-avg-clust-coef-objects,opsahl-avg-clust-coef-objects,opsahl-avg-clust-coef-objects
+metrics-columns: date,avg-clust-coef
+store-modules: clust-coef
 
-store-modules: latapy-clust-coef-users,latapy-clust-coef-objects,opsahl-clust-coef-users,opsahl-clust-coef-objects
+#metrics-columns: date,latapy-avg-clust-coef-users,latapy-avg-clust-coef-objects
+#store-modules: latapy-clust-coef-users,latapy-clust-coef-objects
+
+#metrics-columns: date,latapy-avg-clust-coef-objects,latapy-avg-clust-coef-objects,opsahl-avg-clust-coef-objects,opsahl-avg-clust-coef-objects
+#store-modules: latapy-clust-coef-users,latapy-clust-coef-objects,opsahl-clust-coef-users,opsahl-clust-coef-objects
 
 metrics-modules:
 
@@ -15,6 +20,9 @@ metrics-modules:
          
     latapy-clust-coef-objects:
         title: Clustering coefficient maps for objects - Latapy
+
+    clust-coef:
+        title: Clustering coefficient map
 
     date:
         title: Date
@@ -35,3 +43,6 @@ metrics-modules:
         title: Opsahl - clust coef objects,Opsahl dg - clust coef objects
         depends: opsahl-clust-coef-objects
 
+    avg-clust-coef:
+        title: Avg clust coef users,Avg clust coef objects
+        depends: clust-coef
