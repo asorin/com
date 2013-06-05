@@ -565,7 +565,7 @@ class NetworkX():
 #            tf = f_edge/maxf_user
             tf = f_edge
             w = tf * math.log(N_users/d_object, 2)
-            outf.write( "%s\t%s\t0\t%.3f\n" % (e[0], e[1], w))
+            outf.write( "%s\t%s\t0\t%.5f\n" % (e[0], e[1], w))
 
     def __maxNodeFreqMap(self, nodes):
         maxFreqMap = {}
