@@ -1,0 +1,16 @@
+#process data with 4 threads, 10 random trials
+tools/process.sh southern/southern 1 10 4
+
+#audioscrobbler filtering of data
+cat user_artist.dat | awk '($1<=1000300){print $0}' > user_artist_ku.dat
+
+#convert graph to gml
+bin/dcom -l data/southern/southern_tfidf.dat  -o data/southern/southern_tfidf.gml -a save
+
+#add tfidf weights
+bin/dcom -l data/southern/southern.dat -o data/southern/southern_tfidf.dat -a transform
+
+#run clustering configuration
+bin/dcom -c conf/clustering.yml -l data/twitter_elections/users_domains_50k.dat -o data/twitter_elections/output/output_users_domains_50k_clustering.csv
+
+
