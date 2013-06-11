@@ -80,6 +80,9 @@ class NetworkX():
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
         print "Project network to nodes " + str(ntype)
         prjG = bipartite.projected_graph(self.G, nodes)
+        if prjG.size() == 0:
+            print "Projected network has size 0"
+            return 0
         print "Detect communities for network with %d links" % (prjG.size())
         partition = louvain.best_partition(prjG)
         print "Calculate modularity"
@@ -551,26 +554,26 @@ class NetworkX():
     def transformTfIdf(self, outf):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==0)
         N_users = float(len(nodes))
-#        print "Calculate maximum frequency"
-#        maxFreqMap = self.__maxNodeFreqMap(nodes)
+        print "Calculate maximum frequency"
+        maxFreqMap = self.__maxNodeFreqMap(nodes)
         print "Starting transformation"
         for ue in self.G.edges_iter(data=True):
             e = sorted(ue)
             d_object = self.G.degree(e[1])
             
-            w_edge = float(int(e[2]['weight']))
-            dw_user = self.G.degree(e[0], weight='weight')
-            f_edge = w_edge/dw_user
-#            maxf_user = maxFreqMap[e[0]]
-#            tf = f_edge/maxf_user
-            tf = f_edge
+            f_edge = float(int(e[2]['weight']))
+#            dw_user = self.G.degree(e[0], weight='weight')
+#            f_edge = w_edge/dw_user
+            maxf_user = maxFreqMap[e[0]]
+            tf = f_edge/maxf_user
+#            tf = f_edge
             w = tf * math.log(N_users/d_object, 2)
             outf.write( "%s\t%s\t0\t%.5f\n" % (e[0], e[1], w))
 
     def __maxNodeFreqMap(self, nodes):
         maxFreqMap = {}
         for node in nodes:
-            maxw = max([float(attr['weight'])/self.G.degree(n, weight='weight') for n,_,attr in self.G.edges(node, data=True)])
+            maxw = max([float(attr['weight']) for _,_,attr in self.G.edges(node, data=True)])
             maxFreqMap[node] = maxw
         return maxFreqMap
     
