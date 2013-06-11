@@ -12,7 +12,7 @@ import sys
 import yaml
 
 from dcom.source import *
-from dcom.network_ig import NetworkIG
+#from dcom.network_ig import NetworkIG
 from dcom.network_x import NetworkX
 
 
