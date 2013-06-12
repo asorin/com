@@ -1,6 +1,9 @@
 #process data with 4 threads, 10 random trials
 tools/process.sh southern/southern 1 10 4
 
+#aggregate modularity
+cat `tools/aggregate.py modularity lastfm users_tags`
+
 #audioscrobbler filtering of data
 cat user_artist.dat | awk '($1<=1000300){print $0}' > user_artist_ku.dat
 
