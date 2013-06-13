@@ -38,7 +38,8 @@ idx=$1
 mod=$2
 categ=$3
 data=$4
-thresholds=$5
+label=$5
+thresholds=$6
 
 if [ "$mod" = "all" ]; then
   modules="modularity general_random"
@@ -49,11 +50,11 @@ fi
 in_data=data/$categ/${data}
 file=${in_data}.dat
 
-dir_random=data/$categ/random/$idx
-dir_output=data/$categ/random/$idx/output
+dir_random=data/$categ/$label/random/$idx
+dir_output=$dir_random/output
 mkdir -p $dir_output
 
-dir_tfidf=data/$categ/tfidf
+dir_tfidf=data/$categ/$label/tfidf
 data_tfidf=$dir_tfidf/${data}_tfidf
 
 linksDataFile=`wc -l $file | cut -d' ' -f1`
@@ -69,19 +70,23 @@ do
   thr_file=${data_tfidf}_thr_${thr}.dat
   linksThrFile=`wc -l $thr_file | cut -d' ' -f1`
   linksToRm=`calc $linksDataFile - $linksThrFile`
-  random_file=${dir_random}/random_${data}_tfidf_thr_${thr}.dat
   if [[ $linksToRm -le 0 || $linksToRm -ge $linksDataFile ]]; then
     echo "Skipping $thr_file: $linksThrFile" >> $log
     continue
   fi
   # generate random files
-  tools/randfilter.py $file $linksToRm $random_file >> $log
+  random_file=${dir_random}/random_${data}_tfidf_thr_${thr}.dat
+  if [ ! -f $random_file ]; then
+    tools/randfilter.py $file $linksToRm $random_file >> $log
+  fi
   network_info $random_file
   
   # calculate stuff
   for module in $modules; do
     random_file_output=${dir_output}/output_random_${data}_tfidf_thr_${thr}_${module}.csv
-    bin/dcom -c conf/${module}.yml -l $random_file -o $random_file_output >> $log
+    if [ ! -f $random_file_output ]; then
+      bin/dcom -c conf/${module}.yml -l $random_file -o $random_file_output >> $log
+    fi
     output_info_$module $random_file_output
   done
 done

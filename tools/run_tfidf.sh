@@ -12,12 +12,13 @@ echo "$1 users=$users objects=$objects links=$links"
 
 categ=$1
 data=$2
-thresholds=$3
+label=$3
+thresholds=$4
 
 in_data=data/$categ/${data}
 file=${in_data}.dat
 
-dir_tfidf=data/$categ/tfidf
+dir_tfidf=data/$categ/$label/tfidf
 data_tfidf=$dir_tfidf/${data}_tfidf
 file_tfidf=${data_tfidf}.dat
 

@@ -28,7 +28,8 @@ fi
 mod=$1
 categ=$2
 data=$3
-thresholds=$4
+label=$4
+thresholds=$5
 
 if [ "$mod" = "all" ]; then
   modules="modularity general"
@@ -39,9 +40,9 @@ fi
 in_data=data/$categ/${data}
 file=${in_data}.dat
 
-dir_output=data/$categ/output
+dir_output=data/$categ/$label/output
 
-dir_tfidf=data/$categ/tfidf
+dir_tfidf=data/$categ/$label/tfidf
 data_tfidf=$dir_tfidf/${data}_tfidf
 file_tfidf=${data_tfidf}.dat
 
@@ -52,7 +53,9 @@ mkdir -p $dir_output
 echo Processing $file > $log 
 for module in $modules; do
   file_output=$dir_output/output_${data}_${module}.csv
-  bin/dcom -c conf/${module}.yml -l $file -o $file_output >> $log
+  if [ ! -f $file_output ]; then
+    bin/dcom -c conf/${module}.yml -l $file -o $file_output >> $log
+  fi
   output_info_$module $file_output
 done
 
@@ -75,7 +78,9 @@ do
   echo Processing $thr_file >> $log
   for module in $modules; do
     thr_file_output=${dir_output}/output_${data}_tfidf_thr_${thr}_${module}.csv
-    bin/dcom -c conf/${module}.yml -l $thr_file -o $thr_file_output >> $log
+    if [ ! -f $thr_file_output ]; then
+      bin/dcom -c conf/${module}.yml -l $thr_file -o $thr_file_output >> $log
+    fi
     output_info_$module $thr_file_output
   done
 done

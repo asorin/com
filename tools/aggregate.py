@@ -70,12 +70,18 @@ columns = modules[module]
 
 categ = sys.argv[2]
 dataset = sys.argv[3]
+label = sys.argv[4]
 dataDir = "data/" + categ
-outputDir = dataDir + "/output"
-randomDir = dataDir + "/random"
-resultsDir = dataDir + "/results"
+labelDir = dataDir + "/" + label
+outputDir = labelDir + "/output"
+randomDir = labelDir + "/random"
+resultsDir = labelDir + "/results"
 resultsFile = resultsDir + "/" + module + ".csv"
 delimiter = "|"
+
+if not os.path.isdir(labelDir):
+    print "No directory found: " + labelDir
+    quit()
 
 if not os.path.isdir(resultsDir):
     os.mkdir(resultsDir)
