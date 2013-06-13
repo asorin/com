@@ -554,19 +554,19 @@ class NetworkX():
     def transformTfIdf(self, outf):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==0)
         N_users = float(len(nodes))
+        
         print "Calculate maximum frequency"
         maxFreqMap = self.__maxNodeFreqMap(nodes)
+        
         print "Starting transformation"
         for ue in self.G.edges_iter(data=True):
             e = sorted(ue)
             d_object = self.G.degree(e[1])
             
-            f_edge = float(int(e[2]['weight']))
-#            dw_user = self.G.degree(e[0], weight='weight')
-#            f_edge = w_edge/dw_user
-            maxf_user = maxFreqMap[e[0]]
-            tf = f_edge/maxf_user
-#            tf = f_edge
+            f_edge = float(e[2]['weight'])
+#            tf = f_edge/self.G.degree(e[0], weight='weight') # norm2total
+            tf = f_edge/maxFreqMap[e[0]] # norm2max
+            
             w = tf * math.log(N_users/d_object, 2)
             outf.write( "%s\t%s\t0\t%.5f\n" % (e[0], e[1], w))
 
