@@ -56,7 +56,11 @@ def avgrandom(columns, randomDir, dataset, module, thr, maxIdx):
 
     return rndAvgVals
         
-thresholds = [0.05, 0.1, 0.5, 0.7, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]
+thresholds = [0.05, 0.1, 0.5, 0.7, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6] #norm2max
+#thresholds=[0.1, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2] #norm2total
+#thresholds=[0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4] #norm2total southern/movielens
+
+
 modules = { "modularity" : ["Prj modularity users", "Prj modularity objects"],
            "general" : ["Link events", "Nodes count users", "Nodes count objects", "Links count prj users", "Links count prj objects"] }
 modules_random = { "modularity" : "modularity", "general" : "general_random" }
