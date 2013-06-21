@@ -16,4 +16,5 @@ bin/dcom -l data/southern/southern.dat -o data/southern/southern_tfidf.dat -a tr
 #run clustering configuration
 bin/dcom -c conf/clustering.yml -l data/twitter_elections/users_domains_50k.dat -o data/twitter_elections/output/output_users_domains_50k_clustering.csv
 
-
+# get list of all object degrees
+cat data/delicious/users_tags_1ku.dat | awk -F"\t" '{print $2}' | sort -n | uniq -c | awk '{print $1}' > data/delicious/users_tags_1ku_degrees.dat
