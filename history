@@ -18,3 +18,6 @@ bin/dcom -c conf/clustering.yml -l data/twitter_elections/users_domains_50k.dat 
 
 # get list of all object degrees
 cat data/delicious/users_tags_1ku.dat | awk -F"\t" '{print $2}' | sort -n | uniq -c | awk '{print $1}' > data/delicious/users_tags_1ku_degrees.dat
+
+# fit distribution to degrees of nodes (1 or 2)
+tools/degreedist.sh lastfm/users_tags 2
