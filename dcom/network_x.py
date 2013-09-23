@@ -64,7 +64,7 @@ class NetworkX():
     def hasPartition(self):
         return not self.partition is None
     
-    def __get_projection(self, ntype, threshold):
+    def __get_projection(self, ntype, threshold=0):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
         prjG = bipartite.weighted_projected_graph(self.G, nodes)
         print "Number of projected edges without threshold: " + str(len(prjG.edges()))
@@ -246,6 +246,16 @@ class NetworkX():
         elif outFormat=="edgelist":
             nx.write_edgelist(towrite, fname, delimiter=' ')
         
+    def savePrj(self, ntype, outf):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        prjG = bipartite.weighted_projected_graph(self.G, nodes, ratio=False)
+        for u,v,edata in prjG.edges(data=True):
+            outf.write("%d\t%d\t%d\n" % (u,v,edata["weight"]))
+        outf.close()
+#        print "Number of projected edges without threshold: " + str(len(prjG.edges()))
+#        listEdges = [ (u,v) for u,v,edata in prjG.edges(data=True) if edata['weight'] >= threshold ]
+#        print "Number of projected edges with threshold: " + str(len(listEdges))
+
     def getClustCoef(self, ntype):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
         clustMap = bipartite.clustering(self.G, nodes, mode='dot')

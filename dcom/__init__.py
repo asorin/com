@@ -51,6 +51,8 @@ def parse_args(args):
             help=('use relative time'))
     parser.add_argument('-nd', '--node', action='store', default=None,
             help=('node id'))
+    parser.add_argument('-nt', '--ntype', action='store', default=None,
+            help=('node type'))
 
     return parser.parse_args(args)
 
@@ -109,13 +111,19 @@ def do_save(options):
     node = options['node']
     net.save(outf, node)
 
+def do_save_prj(options):
+    net = options['network']
+    outf = options['output_file']
+    ntype = int(options['ntype'])
+    net.savePrj(ntype, outf)
+
 def do_transform(options):
     net = options['network']
     outf = options['output_file']
     net.transformTfIdf(outf)
         
 def main(args):
-    actions = { "metrics" : do_metrics, "partition" : do_partition, "save" : do_save, "transform" : do_transform }
+    actions = { "metrics" : do_metrics, "partition" : do_partition, "save" : do_save, "save_prj" : do_save_prj, "transform" : do_transform }
     options = vars(parse_args(args or sys.argv[1:]))
     
     if not options['action'] in actions:
