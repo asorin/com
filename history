@@ -21,3 +21,6 @@ cat data/delicious/users_tags_1ku.dat | awk -F"\t" '{print $2}' | sort -n | uniq
 
 # fit distribution to degrees of nodes (1 or 2)
 tools/degreedist.sh lastfm/users_tags 2
+
+# convert ground truth communities to used format
+tools/groundconvert.py data/twitter_userlists/politicsie.communities data/twitter_politicsie/politicsie.communities.ground data/twitter_politicsie/users.dat

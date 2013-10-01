@@ -117,13 +117,20 @@ def do_save_prj(options):
     ntype = int(options['ntype'])
     net.savePrj(ntype, outf)
 
+def do_save_prj_colisted(options):
+    net = options['network']
+    outf = options['output_file']
+    ntype = int(options['ntype'])
+    net.savePrjCoCit(ntype, outf)
+
 def do_transform(options):
     net = options['network']
     outf = options['output_file']
     net.transformTfIdf(outf)
         
 def main(args):
-    actions = { "metrics" : do_metrics, "partition" : do_partition, "save" : do_save, "save_prj" : do_save_prj, "transform" : do_transform }
+    actions = { "metrics" : do_metrics, "partition" : do_partition, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
+
     options = vars(parse_args(args or sys.argv[1:]))
     
     if not options['action'] in actions:

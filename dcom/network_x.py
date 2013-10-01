@@ -245,16 +245,33 @@ class NetworkX():
             nx.write_gml(towrite, fname)
         elif outFormat=="edgelist":
             nx.write_edgelist(towrite, fname, delimiter=' ')
-        
+
     def savePrj(self, ntype, outf):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        prjG = bipartite.projected_graph(self.G, nodes)
+        for u,v in prjG.edges(data=False):
+            outf.write("%d\t%d\t1\n" % (u,v))
+        outf.close()
+        
+    def savePrjWeighted(self, ntype, outf):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
         prjG = bipartite.weighted_projected_graph(self.G, nodes, ratio=False)
         for u,v,edata in prjG.edges(data=True):
             outf.write("%d\t%d\t%d\n" % (u,v,edata["weight"]))
         outf.close()
-#        print "Number of projected edges without threshold: " + str(len(prjG.edges()))
-#        listEdges = [ (u,v) for u,v,edata in prjG.edges(data=True) if edata['weight'] >= threshold ]
-#        print "Number of projected edges with threshold: " + str(len(listEdges))
+
+    def savePrjCoCit(self, ntype, outf):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
+        prjG = bipartite.projected_graph(self.G, nodes)
+        for u,v in prjG.edges(data=False):
+            d_u = float(self.G.degree(u))
+            d_v = float(self.G.degree(v))
+            nbrs_u = set(self.G[u])
+            nbrs_v = set(self.G[v])
+            weight = float(math.pow(len(nbrs_u & nbrs_v),2)) / ( min(d_u,d_v) * ((d_u+d_v)/2) )
+            
+            outf.write("%d\t%d\t%f\n" % (u,v,weight))
+        outf.close()
 
     def getClustCoef(self, ntype):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
