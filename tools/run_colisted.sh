@@ -35,7 +35,9 @@ log=log/output.log
 # convert original bipartite to co-listed projection
 mkdir -p $dir_output_colisted
 prj_colisted_file=${dir_output_colisted}/prj_usr_${data}.dat
-bin/dcom -l $file -o $prj_colisted_file -nt 0 -a save_prj_colisted >> $log
+if [ ! -f $prj_colisted_file ]; then
+  bin/dcom -l $file -o $prj_colisted_file -nt 0 -a save_prj_colisted >> $log
+fi
 output_info $prj_colisted_file
 
 linksDataFile=`wc -l ${file_tfidf} | cut -d' ' -f1`
@@ -55,17 +57,23 @@ do
 
   # convert tf-idf filtered bipartite to simple projection
   prj_simple_tfidf_file=${dir_output_tfidf_simple}/prj_usr_${data}_tfidf_thr_${thr}.dat
-  bin/dcom -l $thr_file -o $prj_simple_tfidf_file -nt 0 -a save_prj >> $log
+  if [ ! -f $prj_simple_tfidf_file ]; then
+    bin/dcom -l $thr_file -o $prj_simple_tfidf_file -nt 0 -a save_prj >> $log
+  fi
   output_info $prj_simple_tfidf_file
 
   # convert tf-idf filtered bipartite to co-listed projection
   prj_colisted_tfidf_file=${dir_output_tfidf_colisted}/prj_usr_${data}_tfidf_thr_${thr}.dat
-  bin/dcom -l $thr_file -o $prj_colisted_tfidf_file -nt 0 -a save_prj_colisted >> $log
+  if [ ! -f $prj_colisted_tfidf_file ]; then
+    bin/dcom -l $thr_file -o $prj_colisted_tfidf_file -nt 0 -a save_prj_colisted >> $log
+  fi
   output_info $prj_colisted_tfidf_file
 
   # build colisted network from original biparite with same no of edges
   linksPrjThrFile=`wc -l $prj_simple_tfidf_file | cut -d' ' -f1`
   prj_colisted_thr_file=${dir_output_colisted}/prj_usr_${data}_tfidf_thr_${thr}.dat
-  cat $prj_colisted_file | sort -rn --key 3 | head -${linksPrjThrFile} | sort -n > $prj_colisted_thr_file
+  if [ ! -f $prj_colisted_thr_file ]; then
+    cat $prj_colisted_file | sort -rn --key 3 | head -${linksPrjThrFile} | sort -n > $prj_colisted_thr_file
+  fi
   output_info $prj_colisted_thr_file
 done

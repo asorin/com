@@ -30,5 +30,7 @@ do
   
   tools/run_colisted.sh $categ $src $label "$thresholds"
   
+  tools/run_oslom.sh $categ $src $label "$thresholds"
+  
   echo Done $ds
 done

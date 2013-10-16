@@ -115,7 +115,7 @@ def do_save_prj(options):
     net = options['network']
     outf = options['output_file']
     ntype = int(options['ntype'])
-    net.savePrj(ntype, outf)
+    net.savePrjWeighted(ntype, outf)
 
 def do_save_prj_colisted(options):
     net = options['network']

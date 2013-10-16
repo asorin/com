@@ -37,6 +37,8 @@ fi
 for thr in $thresholds
 do
   thr_file=${data_tfidf}_thr_${thr}.dat
-  cat $file_tfidf | awk -v thr=$thr '($4>thr){print $0}' > $thr_file
+  if [ ! -f $thr_file ]; then
+    cat $file_tfidf | awk -v thr=$thr '($4>thr){print $0}' > $thr_file
+  fi
   network_info $thr_file
 done
