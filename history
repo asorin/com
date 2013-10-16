@@ -24,3 +24,9 @@ tools/degreedist.sh lastfm/users_tags 2
 
 # convert ground truth communities to used format
 tools/groundconvert.py data/twitter_userlists/politicsie.communities data/twitter_politicsie/politicsie.communities.ground data/twitter_politicsie/users.dat
+
+# show mutual information
+for i in `find data/twitter_politicsie/validate -name "*.mutual" | sort`; do echo $i `cat $i`; done
+
+# get results from comparison between colisted and tfidf
+for i in `find data/twitter_rugby/validate -name "*.mutual" | sort`; do path=`echo $i | awk -F"mutual" '{print $1}'`; name=`echo $path | awk -F"/" '{print $(NF-1)"/"$(NF)}'`; thr=`echo $name | awk -F"_" '{print $NF}'`; echo $name $thr `wc -l ${path}dat| cut -d ' ' -f1` `cat $i`; done
