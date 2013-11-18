@@ -30,3 +30,6 @@ for i in `find data/twitter_politicsie/validate -name "*.mutual" | sort`; do ech
 
 # get results from comparison between colisted and tfidf
 for i in `find data/twitter_rugby/validate -name "*.mutual" | sort`; do path=`echo $i | awk -F"mutual" '{print $1}'`; name=`echo $path | awk -F"/" '{print $(NF-1)"/"$(NF)}'`; thr=`echo $name | awk -F"_" '{print $NF}'`; echo $name $thr `wc -l ${path}dat| cut -d ' ' -f1` `cat $i`; done
+
+# validate tfidf by comparing to colisted score
+tools/process_validate.sh twitter_rugby/rugby

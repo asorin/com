@@ -78,14 +78,14 @@ def do_metrics(options):
             if len(metric)>0:
                 outf.write(delimiter.join(map(str,metric)) + "\n")
 
-def do_partition_ntype(options, ntype, startGroup):
+def do_partition_louvain_ntype(options, ntype, startGroup):
     net = options['network']
     outf = options['output_file']
     threshold = options['partition_threshold']
 #    src = options['source']
     delimiter = options['delimiter']
     
-    partition = net.findPartition(ntype, threshold)
+    partition = net.findPartitionLouvain(ntype, threshold)
     for node, group in partition.iteritems():
         outf.write("%d%s%d\n" % (node, delimiter, startGroup+group))
     
@@ -99,11 +99,26 @@ def do_partition_ntype(options, ntype, startGroup):
 
     return len(community_set)
 
-def do_partition(options):
+def do_partition_louvain(options):
     # partition first set of nodes
     cno = do_partition_ntype(options, 0, 0)
     # partition the second set of nodes
     do_partition_ntype(options, 1, cno)
+
+def do_partition_svd(options):
+    net = options['network']
+    outf = options['output_file']
+    ntype = int(options['ntype'])
+    clusters = int(options['clusters'])
+
+    partition = net.findPartitionSVD(ntype, clusters)
+    communities = {}
+    for node, group in partition.iteritems():
+        if not group in communities:
+            communities[group] = []
+        communities[group].append(node)
+    for c in communities.itervalues():
+        outf.write("%s\n" % (" ".join(map(str, sorted(c)))))
 
 def do_save(options):
     net = options['network']
@@ -129,7 +144,7 @@ def do_transform(options):
     net.transformTfIdf(outf)
         
 def main(args):
-    actions = { "metrics" : do_metrics, "partition" : do_partition, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
+    actions = { "metrics" : do_metrics, "partition-louvain" : do_partition_louvain, "partition-svd" : do_partition_svd, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
 
     options = vars(parse_args(args or sys.argv[1:]))
     

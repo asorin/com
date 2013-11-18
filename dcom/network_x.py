@@ -3,6 +3,7 @@ from metrics import MetricsAbsolute, MetricsRelative
 from networkx.algorithms import bipartite
 import louvain
 import scipy
+import numpy
 import math
 import itertools
 import time
@@ -54,7 +55,7 @@ class NetworkX():
     def setPartition(self, partition):
         self.partition = partition
                 
-    def findPartition(self, ntype, threshold):
+    def findPartitionLouvain(self, ntype, threshold):
         prjG = self.__get_projection(ntype, threshold)
         
         self.partition = louvain.best_partition(prjG)
@@ -64,6 +65,26 @@ class NetworkX():
     def hasPartition(self):
         return not self.partition is None
     
+    def findPartitionSVD(self, ntype, k):
+	dim = round(log2(k))
+        nodes1 = [n for n,d in self.G.nodes(data=True) if d["type"]==0]
+        nodesCount1 = size(nodes1)
+        nodes2 = [n for n,d in self.G.nodes(data=True) if d["type"]==1]
+        A = nx.adjacency_matrix(self.G)[:nodesCount1,nodesCount1:]
+        D1 = sqrt(diag((self.G.degree(nodes1).values())))
+        D2 = sqrt(diag((self.G.degree(nodes2).values())))
+        An = D1 * A * D2
+        # SVD decomposition of A
+        U,s,V = np.linalg.svd(An)
+        #Z = np.concatenate((D1*U[:,1:1+dim], D2*V[:,1:1+dim]),axis=0)
+        Z = D1*U[:,1:1+dim] if ntype==0 else D2*V[:,1:1+dim]
+        centroids,_ = kmeans(Z,2)
+        idx,_ = vq(Z,centroids)
+        self.partition = {}
+        for i in range(0, len(idx)):
+            self.partition[i] = idx[i]
+        return self.partition
+
     def __get_projection(self, ntype, threshold=0):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
         prjG = bipartite.weighted_projected_graph(self.G, nodes)
