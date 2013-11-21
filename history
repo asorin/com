@@ -33,3 +33,6 @@ for i in `find data/twitter_rugby/validate -name "*.mutual" | sort`; do path=`ec
 
 # validate tfidf by comparing to colisted score
 tools/process_validate.sh twitter_rugby/rugby
+
+# partition network using SVD
+bin/dcom -l data/twitter_politicsie/politicsie.dat -o data/twitter_politicsie/politicsie.communities.svd -a partition-svd -nc 7 -nt 0

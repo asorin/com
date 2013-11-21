@@ -7,6 +7,7 @@ import numpy
 import math
 import itertools
 import time
+from scipy.cluster.vq import vq, kmeans
 
 from tools import sum_and_count
 from tools import get_avg_map
@@ -66,23 +67,24 @@ class NetworkX():
         return not self.partition is None
     
     def findPartitionSVD(self, ntype, k):
-	dim = round(log2(k))
+	dim = round(numpy.log2(k))
         nodes1 = [n for n,d in self.G.nodes(data=True) if d["type"]==0]
-        nodesCount1 = size(nodes1)
+        nodesCount1 = len(nodes1)
         nodes2 = [n for n,d in self.G.nodes(data=True) if d["type"]==1]
         A = nx.adjacency_matrix(self.G)[:nodesCount1,nodesCount1:]
-        D1 = sqrt(diag((self.G.degree(nodes1).values())))
-        D2 = sqrt(diag((self.G.degree(nodes2).values())))
+        D1 = numpy.sqrt(numpy.diag((self.G.degree(nodes1).values())))
+        D2 = numpy.sqrt(numpy.diag((self.G.degree(nodes2).values())))
         An = D1 * A * D2
         # SVD decomposition of A
-        U,s,V = np.linalg.svd(An)
+        U,s,V = numpy.linalg.svd(An)
         #Z = np.concatenate((D1*U[:,1:1+dim], D2*V[:,1:1+dim]),axis=0)
         Z = D1*U[:,1:1+dim] if ntype==0 else D2*V[:,1:1+dim]
-        centroids,_ = kmeans(Z,2)
+        centroids,_ = kmeans(Z,k)
         idx,_ = vq(Z,centroids)
         self.partition = {}
+        nodesLabels = nodes1 if ntype==0 else nodes2
         for i in range(0, len(idx)):
-            self.partition[i] = idx[i]
+            self.partition[nodesLabels[i]] = idx[i]
         return self.partition
 
     def __get_projection(self, ntype, threshold=0):

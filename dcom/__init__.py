@@ -51,8 +51,10 @@ def parse_args(args):
             help=('use relative time'))
     parser.add_argument('-nd', '--node', action='store', default=None,
             help=('node id'))
-    parser.add_argument('-nt', '--ntype', action='store', default=None,
+    parser.add_argument('-nt', '--ntype', action='store', default=0,
             help=('node type'))
+    parser.add_argument('-nc', '--nclusters', action='store', default=0,
+            help=('number of clusters'))
 
     return parser.parse_args(args)
 
@@ -109,9 +111,9 @@ def do_partition_svd(options):
     net = options['network']
     outf = options['output_file']
     ntype = int(options['ntype'])
-    clusters = int(options['clusters'])
+    nclusters = int(options['nclusters'])
 
-    partition = net.findPartitionSVD(ntype, clusters)
+    partition = net.findPartitionSVD(ntype, nclusters)
     communities = {}
     for node, group in partition.iteritems():
         if not group in communities:
