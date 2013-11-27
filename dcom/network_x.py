@@ -7,7 +7,7 @@ import numpy
 import math
 import itertools
 import time
-from scipy.cluster.vq import vq, kmeans
+from scipy.cluster.vq import vq, kmeans, whiten
 
 from tools import sum_and_count
 from tools import get_avg_map
@@ -67,20 +67,28 @@ class NetworkX():
         return not self.partition is None
     
     def findPartitionSVD(self, ntype, k):
-	dim = round(numpy.log2(k))
+#	dim = round(numpy.log2(k))
+        dim = k
         nodes1 = [n for n,d in self.G.nodes(data=True) if d["type"]==0]
         nodesCount1 = len(nodes1)
         nodes2 = [n for n,d in self.G.nodes(data=True) if d["type"]==1]
+        print nodesCount1, len(nodes2)
         A = nx.adjacency_matrix(self.G)[:nodesCount1,nodesCount1:]
         D1 = numpy.sqrt(numpy.diag((self.G.degree(nodes1).values())))
         D2 = numpy.sqrt(numpy.diag((self.G.degree(nodes2).values())))
+        print "multiply matrix"
         An = D1 * A * D2
-        # SVD decomposition of A
+        print "SVD decomposition of A"
         U,s,V = numpy.linalg.svd(An)
         #Z = np.concatenate((D1*U[:,1:1+dim], D2*V[:,1:1+dim]),axis=0)
+        print "get the Z matrix"
         Z = D1*U[:,1:1+dim] if ntype==0 else D2*V[:,1:1+dim]
-        centroids,_ = kmeans(Z,k)
-        idx,_ = vq(Z,centroids)
+        print "run k-means on Z"
+        wZ = whiten(Z)
+        centroids,_ = kmeans(wZ,k)
+        print "assign centroids"
+        idx,_ = vq(wZ,centroids)
+        print "finished"
         self.partition = {}
         nodesLabels = nodes1 if ntype==0 else nodes2
         for i in range(0, len(idx)):

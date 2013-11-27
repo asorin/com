@@ -1,9 +1,11 @@
 #!/bin/bash
 #set -e
 
-categ=$1
-data=$2
-clusters=`echo $3 | awk -F"-" '{print $1,$2}'`
+ds=$1
+clusters=`echo $2 | awk -F"-" '{print $1,$2}'`
+
+categ=`echo $ds | cut -d'/' -f1`
+data=`echo $ds | cut -d'/' -f2`
 
 root=~/work/com/data/$categ
 dir=$root/svd-static
@@ -17,7 +19,7 @@ in_file=$root/${data}.dat
 out_file=$dir/${data}.communities
 mutual_file=$dir/${data}.mutual
 
-rm -f ${mutual_file}
+#rm -f ${mutual_file}
 mkdir -p $dir
 for k in `seq $clusters`; do
 #  if [ ! -f $out_file.${k} ]; then

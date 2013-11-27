@@ -36,3 +36,5 @@ tools/process_validate.sh twitter_rugby/rugby
 
 # partition network using SVD
 bin/dcom -l data/twitter_politicsie/politicsie.dat -o data/twitter_politicsie/politicsie.communities.svd -a partition-svd -nc 7 -nt 0
+
+bin/dcom -l data/twitter_politicsuk/politicsuk.dat -o data/twitter_politicsuk/politicsuk.communities.svd -a partition-svd -nc 2 -nt 0
