@@ -7,12 +7,28 @@ import numpy
 import math
 import itertools
 import time
-from scipy.cluster.vq import vq, kmeans, whiten
+import random
+from scipy.cluster.vq import vq, kmeans, kmeans2, whiten
+from scipy import spatial
 
 from tools import sum_and_count
 from tools import get_avg_map
 from tools import distribution_list
 from dcom.tools import check_and_increment
+
+import pickle
+import os
+
+import kmeans
+import spectral
+import scipy
+import scipy.sparse.linalg
+
+from sklearn.cluster import *
+from sklearn.cluster.bicluster import SpectralCoclustering
+from sklearn.preprocessing import normalize, scale
+
+from sklearn.metrics.pairwise import cosine_similarity,pairwise_distances
 
 def print_timing(func):
     def wrapper(*arg):
@@ -65,29 +81,87 @@ class NetworkX():
 
     def hasPartition(self):
         return not self.partition is None
-    
-    def findPartitionSVD(self, ntype, k):
-#	dim = round(numpy.log2(k))
-        dim = k
+   
+    def initOrthoKmeans(self, D, k):
+        print "Starting centroid initialization"
+        selected = []
+        seeds = [numpy.mean(D, axis=0).tolist()]
+        print "Centroid 0:", seeds[0]
+        for idx in range(1,k):
+            minSim = 1
+            minSimObj = None
+            for obj in range(0, len(D)):
+                if obj in selected:
+                    continue
+                sim = min([abs(spatial.distance.cosine(D[obj], numpy.array(seed))) for seed in seeds])
+                if sim < minSim:
+                    minSim = sim
+                    minSimObj = obj
+            if minSimObj is None:
+                return []
+            seeds.append(D[minSimObj].tolist())
+            selected.append(minSimObj)
+            print "Centroid %d:" % (idx), seeds[idx], minSim
+        print "Initialization done" 
+        return numpy.array(seeds)
+
+    def findPartitionCoClust(self, ntype, k):
         nodes1 = [n for n,d in self.G.nodes(data=True) if d["type"]==0]
         nodesCount1 = len(nodes1)
         nodes2 = [n for n,d in self.G.nodes(data=True) if d["type"]==1]
-        print nodesCount1, len(nodes2)
-        A = nx.adjacency_matrix(self.G)[:nodesCount1,nodesCount1:]
-        D1 = numpy.sqrt(numpy.diag((self.G.degree(nodes1).values())))
-        D2 = numpy.sqrt(numpy.diag((self.G.degree(nodes2).values())))
-        print "multiply matrix"
-        An = D1 * A * D2
+        A = scipy.sparse.csr_matrix(nx.adjacency_matrix(self.G)[:nodesCount1,nodesCount1:])        
+        print "Adjacency matrix", nodesCount1, len(nodes2)
+        sp = SpectralCoclustering(n_clusters=k, svd_method='arpack', init='k-means++')
+        print "Fitting data"
+        sp.fit(A)
+        idx = sp.row_labels_
+        print "finished"
+        self.partition = {}
+        nodesLabels = nodes1 if ntype==0 else nodes2
+        for i in range(0, len(idx)):
+            self.partition[nodesLabels[i]] = idx[i]
+        return self.partition
+
+    def findPartitionSVD(self, ntype, k, metric='cosine'):
+        G = self.normalizeTfIdf()
+        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        nodesCount1 = len(nodes1)
+        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+        print "Adjacency matrix", nodesCount1, len(nodes2)
+        D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes1).values()))))
+        D2 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes2).values()))))
+        A = scipy.sparse.csr_matrix(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:])
+        An = D1.dot(A).dot(D2)
         print "SVD decomposition of A"
-        U,s,V = numpy.linalg.svd(An)
-        #Z = np.concatenate((D1*U[:,1:1+dim], D2*V[:,1:1+dim]),axis=0)
+        U,s,V = scipy.sparse.linalg.svds(An, k+1)
+#        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
         print "get the Z matrix"
-        Z = D1*U[:,1:1+dim] if ntype==0 else D2*V[:,1:1+dim]
-        print "run k-means on Z"
-        wZ = whiten(Z)
-        centroids,_ = kmeans(wZ,k)
-        print "assign centroids"
-        idx,_ = vq(wZ,centroids)
+        Z = numpy.dot(D1.todense(),U[:,0:k]) if ntype==0 else numpy.dot(D2.todense(),V[:,0:k])
+#        Z = numpy.dot(D1.todense(),U) if ntype==0 else numpy.dot(D2.todense(),V)
+#        wZ = whiten(Z)
+        wZ = normalize(Z,axis=1)
+#        for n in xrange(k):
+#            wZ[:,n] /= numpy.linalg.norm(wZ[:,n])
+#        print wZ 
+
+#        initC = self.initOrthoKmeans(wZ, k, metric='cosine')
+#        if len(initC) != k:
+#            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
+#            return {}
+        print "run k-means on Z with metric '"+metric+"'"
+
+#        centroids,_ = kmeans2(wZ,initC)
+#        idx,_ = vq(wZ,centroids)
+
+#        centres, idx, dist = kmeans.kmeans(wZ, initC, metric=metric) #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
+
+        cl = KMeans(init='k-means++', n_clusters=k)
+#        cl = Ward(n_clusters=k)
+
+        idx = cl.fit_predict(wZ)
+
+        print idx
+
         print "finished"
         self.partition = {}
         nodesLabels = nodes1 if ntype==0 else nodes2
@@ -627,6 +701,34 @@ class NetworkX():
             
             w = tf * math.log(N_users/d_object, 2)
             outf.write( "%s\t%s\t0\t%.5f\n" % (e[0], e[1], w))
+
+    def normalizeTfIdf(self):
+        nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==0)
+        N_users = float(len(nodes))
+
+        print "Calculate maximum frequency"
+        maxFreqMap = self.__maxNodeFreqMap(nodes)
+
+        tfidfG = nx.Graph()
+        print "Starting transformation"
+        for ue in self.G.edges_iter(data=True):
+            e = sorted(ue)
+            d_object = self.G.degree(e[1])
+
+            f_edge = float(e[2]['weight'])
+#            tf = f_edge/self.G.degree(e[0], weight='weight') # norm2total
+            tf = f_edge/maxFreqMap[e[0]] # norm2max
+
+            w = tf * math.log(N_users/d_object, 2)
+
+            hadNodeA = e[0] in tfidfG
+            hadNodeB = e[1] in tfidfG
+            tfidfG.add_edge(e[0], e[1], weight=w)
+            if not hadNodeA:
+                tfidfG.node[e[0]]["type"] = 0
+            if not hadNodeB:
+                tfidfG.node[e[1]]["type"] = 1
+        return tfidfG
 
     def __maxNodeFreqMap(self, nodes):
         maxFreqMap = {}

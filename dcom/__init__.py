@@ -55,6 +55,8 @@ def parse_args(args):
             help=('node type'))
     parser.add_argument('-nc', '--nclusters', action='store', default=0,
             help=('number of clusters'))
+    parser.add_argument('-m', '--metric', action='store', default=None,
+            help=('similarity metric'))
 
     return parser.parse_args(args)
 
@@ -107,13 +109,7 @@ def do_partition_louvain(options):
     # partition the second set of nodes
     do_partition_ntype(options, 1, cno)
 
-def do_partition_svd(options):
-    net = options['network']
-    outf = options['output_file']
-    ntype = int(options['ntype'])
-    nclusters = int(options['nclusters'])
-
-    partition = net.findPartitionSVD(ntype, nclusters)
+def write_partition(outf, partition):
     communities = {}
     for node, group in partition.iteritems():
         if not group in communities:
@@ -121,6 +117,25 @@ def do_partition_svd(options):
         communities[group].append(node)
     for c in communities.itervalues():
         outf.write("%s\n" % (" ".join(map(str, sorted(c)))))
+
+def do_partition_svd(options):
+    net = options['network']
+    outf = options['output_file']
+    ntype = int(options['ntype'])
+    nclusters = int(options['nclusters'])
+    metric = options['metric']
+
+    partition = net.findPartitionSVD(ntype, nclusters, metric)
+    write_partition(outf, partition)
+
+def do_partition_coclust(options):
+    net = options['network']
+    outf = options['output_file']
+    ntype = int(options['ntype'])
+    nclusters = int(options['nclusters'])
+
+    partition = net.findPartitionCoClust(ntype, nclusters)
+    write_partition(outf, partition)
 
 def do_save(options):
     net = options['network']
@@ -146,7 +161,7 @@ def do_transform(options):
     net.transformTfIdf(outf)
         
 def main(args):
-    actions = { "metrics" : do_metrics, "partition-louvain" : do_partition_louvain, "partition-svd" : do_partition_svd, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
+    actions = { "metrics" : do_metrics, "partition-louvain" : do_partition_louvain, "partition-svd" : do_partition_svd, "partition-coclust" : do_partition_coclust, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
 
     options = vars(parse_args(args or sys.argv[1:]))
     
