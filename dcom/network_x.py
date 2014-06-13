@@ -127,38 +127,37 @@ class NetworkX():
         nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
         nodesCount1 = len(nodes1)
         nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        print "Adjacency matrix", nodesCount1, len(nodes2)
+        nodesCount2 = len(nodes2)
+        print "Adjacency matrix", nodesCount1, nodesCount2
         D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes1).values()))))
         D2 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes2).values()))))
         A = scipy.sparse.csr_matrix(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:])
         An = D1.dot(A).dot(D2)
         print "SVD decomposition of A"
-        U,s,V = scipy.sparse.linalg.svds(An, k+1)
+        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, round(math.log(nodesCount2),0)-2+k)
 #        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
-        print "get the Z matrix"
-        Z = numpy.dot(D1.todense(),U[:,0:k]) if ntype==0 else numpy.dot(D2.todense(),V[:,0:k])
-#        Z = numpy.dot(D1.todense(),U) if ntype==0 else numpy.dot(D2.todense(),V)
+        Z = numpy.dot(D1.todense(),Uk) if ntype==0 else numpy.dot(D2.todense(),Vk)
+        print "got the Z matrix of shape", Z.shape
 #        wZ = whiten(Z)
         wZ = normalize(Z,axis=1)
 #        for n in xrange(k):
 #            wZ[:,n] /= numpy.linalg.norm(wZ[:,n])
 #        print wZ 
 
-#        initC = self.initOrthoKmeans(wZ, k, metric='cosine')
-#        if len(initC) != k:
-#            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
-#            return {}
+        initC = self.initOrthoKmeans(wZ, k)
+        if len(initC) != k:
+            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
+            return {}
         print "run k-means on Z with metric '"+metric+"'"
 
 #        centroids,_ = kmeans2(wZ,initC)
 #        idx,_ = vq(wZ,centroids)
 
-#        centres, idx, dist = kmeans.kmeans(wZ, initC, metric=metric) #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
+        centres, idx, dist = kmeans.kmeans(wZ, initC, metric=metric) #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
 
-        cl = KMeans(init='k-means++', n_clusters=k)
+#        cl = KMeans(init='k-means++', n_clusters=k)
 #        cl = Ward(n_clusters=k)
-
-        idx = cl.fit_predict(wZ)
+#        idx = cl.fit_predict(wZ)
 
         print idx
 
