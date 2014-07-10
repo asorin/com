@@ -55,7 +55,7 @@ def parse_args(args):
             help=('node type'))
     parser.add_argument('-nc', '--nclusters', action='store', default=0,
             help=('number of clusters'))
-    parser.add_argument('-m', '--metric', action='store', default=None,
+    parser.add_argument('-m', '--metric', action='store', default='cosine',
             help=('similarity metric'))
 
     return parser.parse_args(args)
@@ -128,6 +128,17 @@ def do_partition_svd(options):
     partition = net.findPartitionSVD(ntype, nclusters, metric)
     write_partition(outf, partition)
 
+def do_partition_lsi(options):
+    net = options['network']
+    outf = options['output_file']
+    ntype = int(options['ntype'])
+    nclusters = int(options['nclusters'])
+    metric = options['metric']
+
+    partition = net.findPartitionLSI(ntype, nclusters, metric)
+    if partition!=None:
+        write_partition(outf, partition)
+
 def do_partition_coclust(options):
     net = options['network']
     outf = options['output_file']
@@ -161,7 +172,7 @@ def do_transform(options):
     net.transformTfIdf(outf)
         
 def main(args):
-    actions = { "metrics" : do_metrics, "partition-louvain" : do_partition_louvain, "partition-svd" : do_partition_svd, "partition-coclust" : do_partition_coclust, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
+    actions = { "metrics" : do_metrics, "partition-louvain" : do_partition_louvain, "partition-svd" : do_partition_svd, "partition-lsi" : do_partition_lsi, "partition-coclust" : do_partition_coclust, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
 
     options = vars(parse_args(args or sys.argv[1:]))
     

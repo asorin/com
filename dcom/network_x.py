@@ -30,6 +30,9 @@ from sklearn.preprocessing import normalize, scale
 
 from sklearn.metrics.pairwise import cosine_similarity,pairwise_distances
 
+import logging
+import gensim
+
 def print_timing(func):
     def wrapper(*arg):
         t1 = time.time()
@@ -134,7 +137,7 @@ class NetworkX():
         A = scipy.sparse.csr_matrix(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:])
         An = D1.dot(A).dot(D2)
         print "SVD decomposition of A"
-        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, round(math.log(nodesCount2),0)-2+k)
+        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k)#round(math.log(nodesCount2),0)-2+k)
 #        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
         Z = numpy.dot(D1.todense(),Uk) if ntype==0 else numpy.dot(D2.todense(),Vk)
         print "got the Z matrix of shape", Z.shape
@@ -167,6 +170,42 @@ class NetworkX():
         for i in range(0, len(idx)):
             self.partition[nodesLabels[i]] = idx[i]
         return self.partition
+
+    def findPartitionLSI(self, ntype, k, metric='cosine'):
+        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+        G = self.G#normalizeTfIdf()
+        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        nodesCount1 = len(nodes1)
+        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+        nodesCount2 = len(nodes2)
+        print "Adjacency matrix", nodesCount1, nodesCount2
+        D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes1).values()))))
+        D2 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes2).values()))))
+        A = scipy.sparse.csr_matrix(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:])
+        An = D1.dot(A).dot(D2)
+        print "convert to corpus"
+        # convert to corpus
+        Acorpus = gensim.matutils.Sparse2Corpus(An)
+        lsi = gensim.models.lsimodel.LsiModel(Acorpus, num_topics=k)
+        Uk = lsi.projection.u
+
+        Z = numpy.dot(D1.todense(),Uk)
+        wZ = normalize(Z,axis=1)
+
+        initC = self.initOrthoKmeans(wZ, k)
+        if len(initC) != k:
+            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
+            return {}
+        print "run k-means on Z with metric '"+metric+"'"
+        centres, idx, dist = kmeans.kmeans(wZ, initC, metric=metric)
+        print idx
+        print "finished"
+        self.partition = {}
+        nodesLabels = nodes1 if ntype==0 else nodes2
+        for i in range(0, len(idx)):
+            self.partition[nodesLabels[i]] = idx[i]
+        return self.partition
+
 
     def __get_projection(self, ntype, threshold=0):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
