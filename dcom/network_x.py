@@ -108,6 +108,32 @@ class NetworkX():
         print "Initialization done" 
         return numpy.array(seeds)
 
+    def __normalize(self, A, degrees1, degrees2):
+        D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag(degrees1)))
+        D2 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag(degrees2)))
+        A = scipy.sparse.csr_matrix(A)
+        return D1.dot(A).dot(D2), D1, D2
+
+    def __get_partition_from_index(self, idx, nodesLabels):
+        print idx
+        self.partition = {}
+        for i in range(0, len(idx)):
+            self.partition[nodesLabels[i]] = idx[i]
+        return self.partition
+
+    def __cluster(self, Z, k):
+#        initC = self.initOrthoKmeans(Z, k)
+#        if len(initC) != k:
+#            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
+#            return {}
+#        print "run k-means on Z with metric '"+metric+"'"
+#        centres, idx, dist = kmeans.kmeans(Z, initC, metric='cosine') #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
+
+        cl = KMeans(init='k-means++', n_clusters=k)
+        cl = Ward(n_clusters=k)
+        idx = cl.fit_predict(Z)
+        return idx
+
     def findPartitionCoClust(self, ntype, k):
         nodes1 = [n for n,d in self.G.nodes(data=True) if d["type"]==0]
         nodesCount1 = len(nodes1)
@@ -117,95 +143,81 @@ class NetworkX():
         sp = SpectralCoclustering(n_clusters=k, svd_method='arpack', init='k-means++')
         print "Fitting data"
         sp.fit(A)
-        idx = sp.row_labels_
-        print "finished"
-        self.partition = {}
-        nodesLabels = nodes1 if ntype==0 else nodes2
-        for i in range(0, len(idx)):
-            self.partition[nodesLabels[i]] = idx[i]
-        return self.partition
+        return self.__get_partition_from_index(sp.row_labels_, nodes1 if ntype==0 else nodes2)
 
-    def findPartitionSVD(self, ntype, k, metric='cosine'):
+    def findPartitionSVD(self, ntype, k):
         G = self.normalizeTfIdf()
         nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
         nodesCount1 = len(nodes1)
         nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
         nodesCount2 = len(nodes2)
         print "Adjacency matrix", nodesCount1, nodesCount2
-        D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes1).values()))))
-        D2 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes2).values()))))
-        A = scipy.sparse.csr_matrix(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:])
-        An = D1.dot(A).dot(D2)
+        An,D1,D2 = self.__normalize(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:], G.degree(nodes1).values(), G.degree(nodes2).values())
         print "SVD decomposition of A"
-        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k)#round(math.log(nodesCount2),0)-2+k)
+        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, round(math.log(nodesCount2),0)-2+k)
 #        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
         Z = numpy.dot(D1.todense(),Uk) if ntype==0 else numpy.dot(D2.todense(),Vk)
         print "got the Z matrix of shape", Z.shape
-#        wZ = whiten(Z)
         wZ = normalize(Z,axis=1)
-#        for n in xrange(k):
-#            wZ[:,n] /= numpy.linalg.norm(wZ[:,n])
-#        print wZ 
+        print wZ
+        idx = self.__cluster(wZ,k)
 
-        initC = self.initOrthoKmeans(wZ, k)
-        if len(initC) != k:
-            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
-            return {}
-        print "run k-means on Z with metric '"+metric+"'"
+        return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
 
-#        centroids,_ = kmeans2(wZ,initC)
-#        idx,_ = vq(wZ,centroids)
-
-        centres, idx, dist = kmeans.kmeans(wZ, initC, metric=metric) #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
-
-#        cl = KMeans(init='k-means++', n_clusters=k)
-#        cl = Ward(n_clusters=k)
-#        idx = cl.fit_predict(wZ)
-
-        print idx
-
-        print "finished"
-        self.partition = {}
-        nodesLabels = nodes1 if ntype==0 else nodes2
-        for i in range(0, len(idx)):
-            self.partition[nodesLabels[i]] = idx[i]
-        return self.partition
-
-    def findPartitionLSI(self, ntype, k, metric='cosine'):
+    def findPartitionOnline(self, k, init=9, step=3):
         logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-        G = self.G#normalizeTfIdf()
+        G = self.G
+        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+        print nodes1
+        biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
+        print biadj_mx
+
+        An,_,_ = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
+        lsi = gensim.models.lsimodel.LsiModel( gensim.matutils.Sparse2Corpus(An), power_iters=3, num_topics=k)
+
+        for i in xrange(init, len(nodes1), step):
+            print "Nodes", nodes1[i:i+step]
+            Ani,_,_ = self.__normalize(biadj_mx[i:i+step],G.degree(nodes1[i:i+step]).values(),G.degree(nodes2).values())
+            lsi.add_documents(gensim.matutils.Sparse2Corpus(Ani))
+        Uk = lsi.projection.u
+
+        D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag(G.degree(nodes1).values())))
+        print D1.todense()
+        print Uk
+        Z = numpy.dot(D1.todense(),Uk)
+        print "got the Z matrix of shape", Z.shape
+        wZ = normalize(Z,axis=1)
+        print wZ
+        idx = self.__cluster(wZ,k)
+
+        return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
+
+    def findPartitionLSI(self, ntype, k):
+#        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+        G = self.normalizeTfIdf()
         nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
         nodesCount1 = len(nodes1)
         nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
         nodesCount2 = len(nodes2)
         print "Adjacency matrix", nodesCount1, nodesCount2
-        D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes1).values()))))
-        D2 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag((G.degree(nodes2).values()))))
-        A = scipy.sparse.csr_matrix(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:])
-        An = D1.dot(A).dot(D2)
+        An,D1,D2 = self.__normalize(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:], nodes1, nodes2)
         print "convert to corpus"
         # convert to corpus
         Acorpus = gensim.matutils.Sparse2Corpus(An)
-        lsi = gensim.models.lsimodel.LsiModel(Acorpus, num_topics=k)
+        lsi = gensim.models.lsimodel.LsiModel(Acorpus, onepass=False, power_iters=3, num_topics=round(math.log(nodesCount2),0)-2+k)
         Uk = lsi.projection.u
+        print D1.todense()
+        print Uk
+
 
         Z = numpy.dot(D1.todense(),Uk)
+        print "got the Z matrix of shape", Z.shape
         wZ = normalize(Z,axis=1)
+        print wZ
+        idx = self.__cluster(wZ,k)
 
-        initC = self.initOrthoKmeans(wZ, k)
-        if len(initC) != k:
-            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
-            return {}
-        print "run k-means on Z with metric '"+metric+"'"
-        centres, idx, dist = kmeans.kmeans(wZ, initC, metric=metric)
-        print idx
-        print "finished"
-        self.partition = {}
-        nodesLabels = nodes1 if ntype==0 else nodes2
-        for i in range(0, len(idx)):
-            self.partition[nodesLabels[i]] = idx[i]
-        return self.partition
-
+        return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
 
     def __get_projection(self, ntype, threshold=0):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
