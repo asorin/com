@@ -109,9 +109,9 @@ class NetworkX():
         return numpy.array(seeds)
 
     def __normalize(self, A, degrees1, degrees2):
-        D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag(degrees1)))
-        D2 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag(degrees2)))
-        A = scipy.sparse.csr_matrix(A)
+        D1 = scipy.sparse.csc_matrix(numpy.sqrt(numpy.diag(degrees1)))
+        D2 = scipy.sparse.csc_matrix(numpy.sqrt(numpy.diag(degrees2)))
+        A = scipy.sparse.csc_matrix(A)
         return D1.dot(A).dot(D2), D1, D2
 
     def __get_partition_from_index(self, idx, nodesLabels):
@@ -123,10 +123,10 @@ class NetworkX():
 
     def __cluster(self, Z, k):
 #        initC = self.initOrthoKmeans(Z, k)
+#        print initC
 #        if len(initC) != k:
 #            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
 #            return {}
-#        print "run k-means on Z with metric '"+metric+"'"
 #        centres, idx, dist = kmeans.kmeans(Z, initC, metric='cosine') #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
 
         cl = KMeans(init='k-means++', n_clusters=k)
@@ -164,34 +164,40 @@ class NetworkX():
 
         return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
 
-    def findPartitionOnline(self, k, init=9, step=3):
-        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+    def findPartitionOnline(self, k, init=0, step=6):
+#        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
         G = self.G
         nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
         nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        print nodes1
+        id2word = dict((n-len(nodes1)-1,str(n-len(nodes1))) for n in nodes2)
         biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
-        print biadj_mx
-
-        An,_,_ = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
-        lsi = gensim.models.lsimodel.LsiModel( gensim.matutils.Sparse2Corpus(An), power_iters=3, num_topics=k)
+        if init>0:
+            An,_,_ = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
+            corpus = gensim.matutils.Sparse2Corpus(An.transpose())
+            lsi = gensim.models.lsimodel.LsiModel( corpus, id2word=id2word, power_iters=2, num_topics=k)
+            Vk = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
+            print "Nodes", nodes1[0:init], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
+        else:
+            lsi = gensim.models.lsimodel.LsiModel(power_iters=2, id2word=id2word, num_topics=k)
+            Vk = None
 
         for i in xrange(init, len(nodes1), step):
-            print "Nodes", nodes1[i:i+step]
-            Ani,_,_ = self.__normalize(biadj_mx[i:i+step],G.degree(nodes1[i:i+step]).values(),G.degree(nodes2).values())
-            lsi.add_documents(gensim.matutils.Sparse2Corpus(Ani))
-        Uk = lsi.projection.u
+            Ani,_,_ = self.__normalize(biadj_mx[i:i+step,],G.degree(nodes1[i:i+step]).values(),G.degree(nodes2).values())
+            corpus = gensim.matutils.Sparse2Corpus(Ani.transpose())
+            lsi.add_documents(corpus)
+            Vki = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
+            Vk = numpy.concatenate((Vk, Vki),axis=0) if not Vk is None else Vki
+            print "Nodes", nodes1[i:i+step], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
 
         D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag(G.degree(nodes1).values())))
-        print D1.todense()
-        print Uk
-        Z = numpy.dot(D1.todense(),Uk)
+        Z = numpy.dot(D1.todense(),Vk)
         print "got the Z matrix of shape", Z.shape
         wZ = normalize(Z,axis=1)
+#        wZ = Z
         print wZ
         idx = self.__cluster(wZ,k)
 
-        return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
+        return self.__get_partition_from_index(idx, nodes1)
 
     def findPartitionLSI(self, ntype, k):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -205,11 +211,10 @@ class NetworkX():
         print "convert to corpus"
         # convert to corpus
         Acorpus = gensim.matutils.Sparse2Corpus(An)
-        lsi = gensim.models.lsimodel.LsiModel(Acorpus, onepass=False, power_iters=3, num_topics=round(math.log(nodesCount2),0)-2+k)
+        lsi = gensim.models.lsimodel.LsiModel(Acorpus, onepass=False, power_iters=3, num_topics=k)#round(math.log(nodesCount2),0)-2+k)
         Uk = lsi.projection.u
         print D1.todense()
         print Uk
-
 
         Z = numpy.dot(D1.todense(),Uk)
         print "got the Z matrix of shape", Z.shape
