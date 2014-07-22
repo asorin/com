@@ -4,7 +4,8 @@
 partition=$1
 ds=$2
 clusters=`echo $3 | awk -F"-" '{print $1,$2}'`
-metric=$4
+onlineinit=$4
+onlinestep=$5
 
 categ=`echo $ds | cut -d'/' -f1`
 data=`echo $ds | cut -d'/' -f2`
@@ -25,7 +26,10 @@ mutual_file=$dir/${data}.mutual
 mkdir -p $dir
 for k in `seq $clusters`; do
 #  if [ ! -f $out_file.${k} ]; then
-    bin/dcom -l ${in_file} -o ${out_file}.${k} -a partition-$partition -nc $k -nt 0 -m $metric >> $log 2>&1
+    if [ "$#" -ge 5 ]; then
+        extra="-oi $onlineinit -os $onlinestep"
+    fi
+    bin/dcom -l ${in_file} -o ${out_file}.${k} -a partition-$partition -nc $k -nt 0 $extra >> $log 2>&1
 #  fi
   # calculate mutual information with ground trutuh
   score=`$mutual ${ground_file} ${out_file}.${k} | awk '{print $2}'`

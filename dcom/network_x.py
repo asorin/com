@@ -164,6 +164,31 @@ class NetworkX():
 
         return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
 
+    def findPartitionLSI(self, ntype, k):
+#        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+        G = self.normalizeTfIdf()
+        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        nodesCount1 = len(nodes1)
+        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+        nodesCount2 = len(nodes2)
+        print "Adjacency matrix", nodesCount1, nodesCount2
+        An,D1,D2 = self.__normalize(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:], G.degree(nodes1).values(), G.degree(nodes2).values())
+        print "convert to corpus"
+        # convert to corpus
+        Acorpus = gensim.matutils.Sparse2Corpus(An)
+        lsi = gensim.models.lsimodel.LsiModel(Acorpus, onepass=False, power_iters=3, num_topics=round(math.log(nodesCount2),0)-2+k)
+        Uk = lsi.projection.u
+        print D1.todense()
+        print Uk
+
+        Z = numpy.dot(D1.todense(),Uk)
+        print "got the Z matrix of shape", Z.shape
+        wZ = normalize(Z,axis=1)
+        print wZ
+        idx = self.__cluster(wZ,k)
+
+        return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
+
     def findPartitionOnline(self, k, init=0, step=6):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
         G = self.G
@@ -206,31 +231,6 @@ class NetworkX():
         idx = self.__cluster(wZ,k)
 
         return self.__get_partition_from_index(idx, nodes1)
-
-    def findPartitionLSI(self, ntype, k):
-#        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-        G = self.normalizeTfIdf()
-        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
-        nodesCount1 = len(nodes1)
-        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        nodesCount2 = len(nodes2)
-        print "Adjacency matrix", nodesCount1, nodesCount2
-        An,D1,D2 = self.__normalize(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:], nodes1, nodes2)
-        print "convert to corpus"
-        # convert to corpus
-        Acorpus = gensim.matutils.Sparse2Corpus(An)
-        lsi = gensim.models.lsimodel.LsiModel(Acorpus, onepass=False, power_iters=3, num_topics=k)#round(math.log(nodesCount2),0)-2+k)
-        Uk = lsi.projection.u
-        print D1.todense()
-        print Uk
-
-        Z = numpy.dot(D1.todense(),Uk)
-        print "got the Z matrix of shape", Z.shape
-        wZ = normalize(Z,axis=1)
-        print wZ
-        idx = self.__cluster(wZ,k)
-
-        return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
 
     def __get_projection(self, ntype, threshold=0):
         nodes = set(n for n,d in self.G.nodes(data=True) if d["type"]==ntype)
