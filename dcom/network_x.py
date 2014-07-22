@@ -171,21 +171,29 @@ class NetworkX():
         nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
         id2word = dict((n-len(nodes1)-1,str(n-len(nodes1))) for n in nodes2)
         biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
-        if init>0:
+        if init<=1 and step==1:
+            print "Using step of 1 requires init nodes at least 2"
+            init = 2
+
+        if init>1:
+            print "Initialize with", init, "nodes"
             An,_,_ = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
             corpus = gensim.matutils.Sparse2Corpus(An.transpose())
             lsi = gensim.models.lsimodel.LsiModel( corpus, id2word=id2word, power_iters=2, num_topics=k)
             Vk = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
             print "Nodes", nodes1[0:init], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
         else:
+            print "No initial training provided"
             lsi = gensim.models.lsimodel.LsiModel(power_iters=2, id2word=id2word, num_topics=k)
             Vk = None
 
+        print "Iterate with a step of", step
         for i in xrange(init, len(nodes1), step):
             Ani,_,_ = self.__normalize(biadj_mx[i:i+step,],G.degree(nodes1[i:i+step]).values(),G.degree(nodes2).values())
             corpus = gensim.matutils.Sparse2Corpus(Ani.transpose())
             lsi.add_documents(corpus)
             Vki = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
+#            print Vk, Vki
             Vk = numpy.concatenate((Vk, Vki),axis=0) if not Vk is None else Vki
             print "Nodes", nodes1[i:i+step], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
 
@@ -194,7 +202,7 @@ class NetworkX():
         print "got the Z matrix of shape", Z.shape
         wZ = normalize(Z,axis=1)
 #        wZ = Z
-        print wZ
+#        print wZ
         idx = self.__cluster(wZ,k)
 
         return self.__get_partition_from_index(idx, nodes1)

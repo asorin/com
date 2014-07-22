@@ -55,6 +55,11 @@ def parse_args(args):
             help=('node type'))
     parser.add_argument('-nc', '--nclusters', action='store', default=0,
             help=('number of clusters'))
+    parser.add_argument('-oi', '--onlineinit', action='store', default=0,
+            help=('number of nodes to start the online clustering'))
+    parser.add_argument('-os', '--onlinestep', action='store', default=1,
+            help=('number of nodes in each step for online clustering'))
+
 
     return parser.parse_args(args)
 
@@ -150,8 +155,10 @@ def do_partition_online(options):
     outf = options['output_file']
     ntype = int(options['ntype'])
     nclusters = int(options['nclusters'])
+    online_init_nodes = int(options['onlineinit'])
+    online_step_nodes = int(options['onlinestep'])
 
-    partition = net.findPartitionOnline(nclusters)
+    partition = net.findPartitionOnline(nclusters,online_init_nodes,online_step_nodes)
     if partition!=None:
         write_partition(outf, partition)
 
