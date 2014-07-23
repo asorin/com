@@ -130,9 +130,18 @@ class NetworkX():
 #        centres, idx, dist = kmeans.kmeans(Z, initC, metric='cosine') #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
 
         cl = KMeans(init='k-means++', n_clusters=k)
-        cl = Ward(n_clusters=k)
+#        cl = Ward(n_clusters=k)
         idx = cl.fit_predict(Z)
         return idx
+
+    def __cluster_update(self, Z, k, model=None):
+        if model is None:
+            model = MiniBatchKMeans(init='k-means++', n_clusters=k)
+        model.partial_fit(Z)
+        return model
+
+    def __cluster_get(self, Z, model):
+        return model.predict(Z)
 
     def findPartitionCoClust(self, ntype, k):
         nodes1 = [n for n,d in self.G.nodes(data=True) if d["type"]==0]
@@ -154,7 +163,7 @@ class NetworkX():
         print "Adjacency matrix", nodesCount1, nodesCount2
         An,D1,D2 = self.__normalize(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:], G.degree(nodes1).values(), G.degree(nodes2).values())
         print "SVD decomposition of A"
-        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, round(math.log(nodesCount2),0)-2+k)
+        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k)#round(math.log(nodesCount2),0)-2+k)
 #        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
         Z = numpy.dot(D1.todense(),Uk) if ntype==0 else numpy.dot(D2.todense(),Vk)
         print "got the Z matrix of shape", Z.shape
@@ -166,32 +175,33 @@ class NetworkX():
 
     def findPartitionLSI(self, ntype, k):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-        G = self.normalizeTfIdf()
+        G = self.G #normalizeTfIdf()
         nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
         nodesCount1 = len(nodes1)
         nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
         nodesCount2 = len(nodes2)
+        biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
         print "Adjacency matrix", nodesCount1, nodesCount2
-        An,D1,D2 = self.__normalize(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:], G.degree(nodes1).values(), G.degree(nodes2).values())
+        An,D1,D2 = self.__normalize(biadj_mx, G.degree(nodes1).values(), G.degree(nodes2).values())
         print "convert to corpus"
         # convert to corpus
         Acorpus = gensim.matutils.Sparse2Corpus(An)
-        lsi = gensim.models.lsimodel.LsiModel(Acorpus, onepass=False, power_iters=3, num_topics=round(math.log(nodesCount2),0)-2+k)
+        lsi = gensim.models.lsimodel.LsiModel(Acorpus, onepass=False, power_iters=3, num_topics=k)#round(math.log(nodesCount2),0)-2+k)
         Uk = lsi.projection.u
-        print D1.todense()
-        print Uk
+        print "D1",D1.shape
+        print "Uk",Uk.shape
 
         Z = numpy.dot(D1.todense(),Uk)
         print "got the Z matrix of shape", Z.shape
         wZ = normalize(Z,axis=1)
-        print wZ
+#        print wZ
         idx = self.__cluster(wZ,k)
-
+        print type(idx),idx.shape
         return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
 
     def findPartitionOnline(self, k, init=0, step=6):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-        G = self.G
+        G = self.normalizeTfIdf()
         nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
         nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
         id2word = dict((n-len(nodes1)-1,str(n-len(nodes1))) for n in nodes2)
@@ -199,13 +209,17 @@ class NetworkX():
         if init<=1 and step==1:
             print "Using step of 1 requires init nodes at least 2"
             init = 2
-
+        km = None
+        idx = []
         if init>1:
             print "Initialize with", init, "nodes"
-            An,_,_ = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
+            An,D1k,D2k = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
             corpus = gensim.matutils.Sparse2Corpus(An.transpose())
-            lsi = gensim.models.lsimodel.LsiModel( corpus, id2word=id2word, power_iters=2, num_topics=k)
+            lsi = gensim.models.lsimodel.LsiModel( corpus, id2word=id2word, power_iters=2, num_topics=k)#round(math.log(nodesCount2),0)-2+k)
             Vk = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
+            Zk = normalize(numpy.dot(D1k.todense(), Vk),axis=1)
+            km = self.__cluster_update(Zk,k)
+            idx = self.__cluster_get(Zk,km).tolist()
             print "Nodes", nodes1[0:init], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
         else:
             print "No initial training provided"
@@ -214,21 +228,16 @@ class NetworkX():
 
         print "Iterate with a step of", step
         for i in xrange(init, len(nodes1), step):
-            Ani,_,_ = self.__normalize(biadj_mx[i:i+step,],G.degree(nodes1[i:i+step]).values(),G.degree(nodes2).values())
+            Ani,D1ki,_ = self.__normalize(biadj_mx[i:i+step,],G.degree(nodes1[i:i+step]).values(),G.degree(nodes2).values())
             corpus = gensim.matutils.Sparse2Corpus(Ani.transpose())
             lsi.add_documents(corpus)
             Vki = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
 #            print Vk, Vki
             Vk = numpy.concatenate((Vk, Vki),axis=0) if not Vk is None else Vki
+            Zki = normalize(numpy.dot(D1ki.todense(), Vki),axis=1)
+            km = self.__cluster_update(Zki,k,km)
+            idx.extend(self.__cluster_get(Zki,km).tolist())
             print "Nodes", nodes1[i:i+step], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
-
-        D1 = scipy.sparse.csr_matrix(numpy.sqrt(numpy.diag(G.degree(nodes1).values())))
-        Z = numpy.dot(D1.todense(),Vk)
-        print "got the Z matrix of shape", Z.shape
-        wZ = normalize(Z,axis=1)
-#        wZ = Z
-#        print wZ
-        idx = self.__cluster(wZ,k)
 
         return self.__get_partition_from_index(idx, nodes1)
 
