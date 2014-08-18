@@ -162,6 +162,17 @@ def do_partition_online(options):
     if partition!=None:
         write_partition(outf, partition)
 
+def do_partition_incremental(options):
+    net = options['network']
+    outf = options['output_file']
+    ntype = int(options['ntype'])
+    nclusters = int(options['nclusters'])
+    online_init_nodes = int(options['onlineinit'])
+
+    partition = net.findPartitionIncremental(nclusters,online_init_nodes)
+    if partition!=None:
+        write_partition(outf, partition)
+
 def do_save(options):
     net = options['network']
     outf = options['output_file']
@@ -186,7 +197,7 @@ def do_transform(options):
     net.transformTfIdf(outf)
         
 def main(args):
-    actions = { "metrics" : do_metrics, "partition-louvain" : do_partition_louvain, "partition-svd" : do_partition_svd, "partition-lsi" : do_partition_lsi, "partition-coclust" : do_partition_coclust, "partition-online": do_partition_online, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
+    actions = { "metrics" : do_metrics, "partition-louvain" : do_partition_louvain, "partition-svd" : do_partition_svd, "partition-lsi" : do_partition_lsi, "partition-coclust" : do_partition_coclust, "partition-online": do_partition_online, "partition-incremental": do_partition_incremental, "save" : do_save, "save_prj" : do_save_prj, "save_prj_colisted" : do_save_prj_colisted, "transform" : do_transform }
 
     options = vars(parse_args(args or sys.argv[1:]))
     

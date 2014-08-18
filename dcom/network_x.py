@@ -175,7 +175,7 @@ class NetworkX():
 
     def findPartitionLSI(self, ntype, k):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-        G = self.G #normalizeTfIdf()
+        G = self.normalizeTfIdf()
         nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
         nodesCount1 = len(nodes1)
         nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
@@ -198,6 +198,89 @@ class NetworkX():
         idx = self.__cluster(wZ,k)
         print type(idx),idx.shape
         return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
+
+    def __svdUpdate(self, U, S, V, a, b):
+        # convert input to matrices (no copies of data made if already numpy.ndarray or numpy.matrix)
+        S = numpy.asmatrix(S)
+        U = numpy.asmatrix(U)
+        if V is not None:
+            V = numpy.asmatrix(V)
+        a = numpy.asmatrix(a).reshape(a.size, 1)
+        b = numpy.asmatrix(b).reshape(b.size, 1)
+   
+        rank = S.shape[1]
+    
+        # eq (6)
+        m = U.T * a
+        p = a - U * m
+#        print p
+        Ra = numpy.sqrt(p.T * p)
+        if float(Ra) < 1e-10:
+            print "input already contained in a subspace of U; skipping update"
+            return U, S, V
+        P = (1.0 / float(Ra)) * p
+    
+        if V is not None:
+            # eq (7)
+            n = V.T * b
+            q = b - V * n
+            Rb = numpy.sqrt(q.T * q)
+            if float(Rb) < 1e-10:
+                print "input already contained in a subspace of V; skipping update"
+                return U, S, V
+            Q = (1.0 / float(Rb)) * q
+        else:
+            n = numpy.matrix(numpy.zeros((rank, 1)))
+            Rb = numpy.matrix([[1.0]])    
+    
+#        if float(Ra) > 1.0 or float(Rb) > 1.0:
+#            print "insufficient target rank (Ra=%.3f, Rb=%.3f); this update will result in major loss of information" % (float(Ra), float(Rb))
+    
+        # eq (8)
+        K = numpy.matrix(numpy.diag(list(numpy.diag(S)) + [0.0])) + numpy.bmat('m ; Ra') * numpy.bmat('n ; Rb').T
+    
+        # eq (5)
+        u, s, vt = numpy.linalg.svd(K, full_matrices = False)
+        tUp = numpy.matrix(u[:, :rank])
+        tVp = numpy.matrix(vt.T[:, :rank])
+        tSp = numpy.matrix(numpy.diag(s[: rank]))
+        Up = numpy.bmat('U P') * tUp
+        if V is not None:
+            Vp = numpy.bmat('V Q') * tVp
+        else:
+            Vp = None
+        Sp = tSp
+    
+        return Up, Sp, Vp
+
+    def findPartitionIncremental(self, k, init):
+#        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+        G = self.normalizeTfIdf()
+        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+        id2word = dict((n-len(nodes1)-1,str(n-len(nodes1))) for n in nodes2)
+        biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
+        An,D1s,_ = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
+        U,S,Vt = scipy.sparse.linalg.svds(An, k)
+        S = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
+        V = Vt.T
+        D1 = D1s.todense()
+        print "SVD decomposition of A", U.shape, S.shape, V.shape
+        print "Iterate with a step of 1"
+        for i in xrange(init, len(nodes1)):
+            Ani,D1ki,_ = self.__normalize(biadj_mx[i,],[G.degree(nodes1[i])],G.degree(nodes2).values())
+            D1 = numpy.diag(list(numpy.diag(D1)) + list(D1ki.todense()))
+            U_0 = numpy.concatenate((U,numpy.matrix(numpy.zeros(k))),axis=0)
+            a = numpy.matrix(numpy.zeros(i+1)).T
+            a[i,0] = 1
+            b = Ani.T.todense().T
+            U,S,V = self.__svdUpdate(U_0,S,V,a,b)
+        Z = numpy.dot(D1,U) 
+        print "got the Z matrix of shape", Z.shape
+        wZ = normalize(Z,axis=1)
+        print wZ
+        idx = self.__cluster(wZ,k)
+        return self.__get_partition_from_index(idx, nodes1)
 
     def findPartitionOnline(self, k, init=0, step=6):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
