@@ -108,11 +108,19 @@ class NetworkX():
         print "Initialization done" 
         return numpy.array(seeds)
 
-    def __normalize(self, A, degrees1, degrees2):
-        D1 = scipy.sparse.csc_matrix(numpy.sqrt(numpy.diag(degrees1)))
-        D2 = scipy.sparse.csc_matrix(numpy.sqrt(numpy.diag(degrees2)))
+    def __degree_matrix(self, degrees):
+        return scipy.sparse.csc_matrix(numpy.sqrt(numpy.diag(degrees)))
+
+    def __get_nodes_and_degrees(self, G):
+        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+        D1 = self.__degree_matrix(G.degree(nodes1).values())
+        D2 = self.__degree_matrix(G.degree(nodes2).values())
+        return nodes1,nodes2,D1,D2
+
+    def __normalize(self, A, D1, D2):
         A = scipy.sparse.csc_matrix(A)
-        return D1.dot(A).dot(D2), D1, D2
+        return D1.dot(A).dot(D2)
 
     def __get_partition_from_index(self, idx, nodesLabels):
         print idx
@@ -143,12 +151,18 @@ class NetworkX():
     def __cluster_get(self, Z, model):
         return model.predict(Z)
 
+    def __get_nodes_and_degrees(self, G):
+        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+        D1 = self.__degree_matrix(G.degree(nodes1).values())
+	D2 = self.__degree_matrix(G.degree(nodes2).values())
+        return nodes1,nodes2,D1,D2
+
     def findPartitionCoClust(self, ntype, k):
-        nodes1 = [n for n,d in self.G.nodes(data=True) if d["type"]==0]
-        nodesCount1 = len(nodes1)
-        nodes2 = [n for n,d in self.G.nodes(data=True) if d["type"]==1]
-        A = scipy.sparse.csr_matrix(nx.adjacency_matrix(self.G)[:nodesCount1,nodesCount1:])        
-        print "Adjacency matrix", nodesCount1, len(nodes2)
+        G = self.normalizeTfIdf()
+        nodes1, nodes2, _, _ = self.__get_nodes_and_degrees(G)
+        A = bipartite.biadjacency_matrix(G, row_order=nodes1)
+        print "Adjacency matrix", len(nodes1), len(nodes2)
         sp = SpectralCoclustering(n_clusters=k, svd_method='arpack', init='k-means++')
         print "Fitting data"
         sp.fit(A)
@@ -156,14 +170,11 @@ class NetworkX():
 
     def findPartitionSVD(self, ntype, k):
         G = self.normalizeTfIdf()
-        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
-        nodesCount1 = len(nodes1)
-        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        nodesCount2 = len(nodes2)
-        print "Adjacency matrix", nodesCount1, nodesCount2
-        An,D1,D2 = self.__normalize(nx.adjacency_matrix(G)[:nodesCount1,nodesCount1:], G.degree(nodes1).values(), G.degree(nodes2).values())
+        nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G)
+        print "Adjacency matrix", len(nodes1), len(nodes2)
+        An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=nodes1), D1, D2)
         print "SVD decomposition of A"
-        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k)#round(math.log(nodesCount2),0)-2+k)
+        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k)#round(math.log(len(nodes2)),0)-2+k)
 #        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
         Z = numpy.dot(D1.todense(),Uk) if ntype==0 else numpy.dot(D2.todense(),Vk)
         print "got the Z matrix of shape", Z.shape
@@ -176,13 +187,9 @@ class NetworkX():
     def findPartitionLSI(self, ntype, k):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
         G = self.normalizeTfIdf()
-        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
-        nodesCount1 = len(nodes1)
-        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        nodesCount2 = len(nodes2)
-        biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
-        print "Adjacency matrix", nodesCount1, nodesCount2
-        An,D1,D2 = self.__normalize(biadj_mx, G.degree(nodes1).values(), G.degree(nodes2).values())
+        nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G)
+        print "Adjacency matrix", len(nodes1), len(nodes2)
+        An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=nodes1), D1, D2)
         print "convert to corpus"
         # convert to corpus
         Acorpus = gensim.matutils.Sparse2Corpus(An)
@@ -256,26 +263,24 @@ class NetworkX():
     def findPartitionIncremental(self, k, init):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
         G = self.normalizeTfIdf()
-        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
-        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        id2word = dict((n-len(nodes1)-1,str(n-len(nodes1))) for n in nodes2)
-        biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
-        An,D1s,_ = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
+        nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G)
+	biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
+        An = self.__normalize(biadj_mx[0:init,], D1[0:init,0:init], D2)
+        print "Adjacency matrix", biadj_mx.shape
+
         U,S,Vt = scipy.sparse.linalg.svds(An, k)
         S = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
         V = Vt.T
-        D1 = D1s.todense()
         print "SVD decomposition of A", U.shape, S.shape, V.shape
         print "Iterate with a step of 1"
         for i in xrange(init, len(nodes1)):
-            Ani,D1ki,_ = self.__normalize(biadj_mx[i,],[G.degree(nodes1[i])],G.degree(nodes2).values())
-            D1 = numpy.diag(list(numpy.diag(D1)) + list(D1ki.todense()))
+            Ani = self.__normalize(biadj_mx[i,],scipy.sparse.csc_matrix(D1[i,i]),D2)
             U_0 = numpy.concatenate((U,numpy.matrix(numpy.zeros(k))),axis=0)
             a = numpy.matrix(numpy.zeros(i+1)).T
             a[i,0] = 1
             b = Ani.T.todense().T
             U,S,V = self.__svdUpdate(U_0,S,V,a,b)
-        Z = numpy.dot(D1,U) 
+        Z = numpy.dot(D1.todense(),U) 
         print "got the Z matrix of shape", Z.shape
         wZ = normalize(Z,axis=1)
         print wZ
@@ -285,10 +290,11 @@ class NetworkX():
     def findPartitionOnline(self, k, init=0, step=6):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
         G = self.normalizeTfIdf()
-        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
-        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        id2word = dict((n-len(nodes1)-1,str(n-len(nodes1))) for n in nodes2)
+        nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G)
         biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
+        print "Adjacency matrix", biadj_mx.shape
+
+        id2word = dict((n-len(nodes1)-1,str(n-len(nodes1))) for n in nodes2)
         if init<=1 and step==1:
             print "Using step of 1 requires init nodes at least 2"
             init = 2
@@ -296,7 +302,8 @@ class NetworkX():
         idx = []
         if init>1:
             print "Initialize with", init, "nodes"
-            An,D1k,D2k = self.__normalize(biadj_mx[0:init,],G.degree(nodes1[0:init]).values(),G.degree(nodes2).values())
+            D1k = D1[0:init,0:init]
+            An = self.__normalize(biadj_mx[0:init,],D1k,D2)
             corpus = gensim.matutils.Sparse2Corpus(An.transpose())
             lsi = gensim.models.lsimodel.LsiModel( corpus, id2word=id2word, power_iters=2, num_topics=k)#round(math.log(nodesCount2),0)-2+k)
             Vk = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
@@ -311,16 +318,17 @@ class NetworkX():
 
         print "Iterate with a step of", step
         for i in xrange(init, len(nodes1), step):
-            Ani,D1ki,_ = self.__normalize(biadj_mx[i:i+step,],G.degree(nodes1[i:i+step]).values(),G.degree(nodes2).values())
+            endidx = min(i+step,len(nodes1))
+            D1ki = D1[i:endidx,i:endidx]
+            Ani = self.__normalize(biadj_mx[i:endidx,],D1ki,D2)
             corpus = gensim.matutils.Sparse2Corpus(Ani.transpose())
             lsi.add_documents(corpus)
             Vki = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
-#            print Vk, Vki
             Vk = numpy.concatenate((Vk, Vki),axis=0) if not Vk is None else Vki
             Zki = normalize(numpy.dot(D1ki.todense(), Vki),axis=1)
             km = self.__cluster_update(Zki,k,km)
             idx.extend(self.__cluster_get(Zki,km).tolist())
-            print "Nodes", nodes1[i:i+step], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
+            print "Nodes", nodes1[i:endidx], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
 
         return self.__get_partition_from_index(idx, nodes1)
 
