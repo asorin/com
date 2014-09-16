@@ -295,26 +295,21 @@ class NetworkX():
         print "Adjacency matrix", biadj_mx.shape
 
         id2word = dict((n-len(nodes1)-1,str(n-len(nodes1))) for n in nodes2)
-        if init<=1 and step==1:
-            print "Using step of 1 requires init nodes at least 2"
+        if init<=1:
+            print "Requires init nodes at least 2"
             init = 2
         km = None
         idx = []
-        if init>1:
-            print "Initialize with", init, "nodes"
-            D1k = D1[0:init,0:init]
-            An = self.__normalize(biadj_mx[0:init,],D1k,D2)
-            corpus = gensim.matutils.Sparse2Corpus(An.transpose())
-            lsi = gensim.models.lsimodel.LsiModel( corpus, id2word=id2word, power_iters=2, num_topics=k)#round(math.log(nodesCount2),0)-2+k)
-            Vk = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
-            Zk = normalize(numpy.dot(D1k.todense(), Vk),axis=1)
-            km = self.__cluster_update(Zk,k)
-            idx = self.__cluster_get(Zk,km).tolist()
-            print "Nodes", nodes1[0:init], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
-        else:
-            print "No initial training provided"
-            lsi = gensim.models.lsimodel.LsiModel(power_iters=2, id2word=id2word, num_topics=k)
-            Vk = None
+        print "Initialize with", init, "nodes"
+        D1k = D1[0:init,0:init]
+        An = self.__normalize(biadj_mx[0:init,],D1k,D2)
+        corpus = gensim.matutils.Sparse2Corpus(An.transpose())
+        lsi = gensim.models.lsimodel.LsiModel( corpus, id2word=id2word, power_iters=2, num_topics=k)#round(math.log(nodesCount2),0)-2+k)
+        Vk = gensim.matutils.corpus2dense(lsi[corpus], len(lsi.projection.s)).T / lsi.projection.s
+        Zk = normalize(numpy.dot(D1k.todense(), Vk),axis=1)
+        km = self.__cluster_update(Zk,k)
+        idx = self.__cluster_get(Zk,km).tolist()
+        print "Nodes", nodes1[0:init], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
 
         print "Iterate with a step of", step
         for i in xrange(init, len(nodes1), step):
@@ -329,6 +324,12 @@ class NetworkX():
             km = self.__cluster_update(Zki,k,km)
             idx.extend(self.__cluster_get(Zki,km).tolist())
             print "Nodes", nodes1[i:endidx], Vk.shape, lsi.projection.u.shape, lsi.projection.s.shape
+
+#        Z = numpy.dot(D1.todense(),Vk)
+#        print "got the Z matrix of shape", Z.shape
+#        wZ = normalize(Z,axis=1)
+#        print wZ
+#        idx = self.__cluster(wZ,k)
 
         return self.__get_partition_from_index(idx, nodes1)
 
