@@ -45,13 +45,20 @@ def print_timing(func):
 
 class NetworkX():
 
-    def __init__(self, options):
+    def __init__(self, options, src):
         self.G = nx.Graph()
         if options['action']=="metrics":
             self.metrics = MetricsRelative(self, options) if options['relative'] else MetricsAbsolute(self, options)
         else:
             self.metrics = None
-        self.partition = None
+
+        self.nodeLabels = src.nodes
+        self.partition = src.partition
+        self.nclusters = int(options['nclusters'])
+        self.initDelay = int(options['onlineinit'])
+        self.initDone = False
+        self.orderedNodes = [ [], [] ]
+        self.rtU,self.rtS,self.rtV = None, None, None
 
     def addLink(self, nodeA, nodeB, ts=None, weight=1):
         
@@ -66,15 +73,34 @@ class NetworkX():
         self.__updateNode(nodeA, 0, ts, hadNodeA)
         self.__updateNode(nodeB, 1, ts, hadNodeB)
 
+        if not self.initDone and len(self.G.edges())>=self.initDelay:
+            print "Init cluster"
+            self.__rtClusterInit()
+            self.initDone = True
+        else:
+            self.__rtClusterUpdate()
+
         if not self.metrics is None:
             self.metrics.newEventPost(nodeA, nodeB, ts)
+
+    def __rtClusterInit(self):
+        G = self.G
+        biadj_mx = bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1])
+        nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
+        An = self.__normalize(biadj_mx, D1, D2)
+        print "Cluster init: adjacency matrix", biadj_mx.shape
+
+        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, self.nclusters)
+        self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
+        self.rtV = Vt.T
+
+    def __rtClusterUpdate(self):
+        # TODO
+        pass
 
     def flush(self):
         pass
     
-    def setPartition(self, partition):
-        self.partition = partition
-                
     def findPartitionLouvain(self, ntype, threshold):
         prjG = self.__get_projection(ntype, threshold)
         
@@ -151,9 +177,11 @@ class NetworkX():
     def __cluster_get(self, Z, model):
         return model.predict(Z)
 
-    def __get_nodes_and_degrees(self, G):
-        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
-        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+    def __get_nodes_and_degrees(self, G, nodes1=None, nodes2=None):
+        if nodes1 is None:
+            nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        if nodes2 is None:
+            nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
         D1 = self.__degree_matrix(G.degree(nodes1).values())
 	D2 = self.__degree_matrix(G.degree(nodes2).values())
         return nodes1,nodes2,D1,D2
@@ -169,7 +197,8 @@ class NetworkX():
         return self.__get_partition_from_index(sp.row_labels_, nodes1 if ntype==0 else nodes2)
 
     def findPartitionSVD(self, ntype, k):
-        G = self.normalizeTfIdf()
+#        G = self.normalizeTfIdf()
+        G = self.G
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G)
         print "Adjacency matrix", len(nodes1), len(nodes2)
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=nodes1), D1, D2)
@@ -262,7 +291,9 @@ class NetworkX():
 
     def findPartitionIncremental(self, k, init):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-        G = self.normalizeTfIdf()
+#        G = self.normalizeTfIdf()
+        G = self.G
+#        print sorted(G.edges(data=True),key=lambda x: x[2]['timestamp'])
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G)
 	biadj_mx = bipartite.biadjacency_matrix(G, row_order=nodes1)
         An = self.__normalize(biadj_mx[0:init,], D1[0:init,0:init], D2)
@@ -414,6 +445,7 @@ class NetworkX():
             self.G.node[node]["type"] = ntype
             self.G.node[node]["start"] = ts
             self.G.node[node]["lifetime"] = 0
+            self.orderedNodes[ntype].append(node)
         else:
             self.G.node[node]["lifetime"] = ts - self.G.node[node]["start"]
     

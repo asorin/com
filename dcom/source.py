@@ -43,18 +43,29 @@ class NetSource():
             row = line.strip("\r\n").split(self.delimiter)
             if len(row)<2:
                 raise CommunitySourceError("Invalid number of fields: %d" % len(row))
-            nodeA = row[0]                 
-            nodeB = row[1]
+            nodeA = int(row[0])
+            nodeB = int(row[1])
             ts = 0
             weight = 1
             if len(row)>2:
-                ts = int(row[2])/1000
+                ts = int(row[2])
 #                ts = datetime.utcfromtimestamp(float(row[2])/1000)
 #            else:
 #                ts = datetime.now()
                 if len(row)>3:
                     weight = float(row[3])
-            self.links.append((int(nodeA), int(nodeB), ts, weight))
+
+            self.links.append((nodeA, nodeB, ts, weight))
+
+            if not nodeA in self.nodes[0]:
+                self.nodes[0][nodeA] = { "name": str(nodeA), "ts": ts }
+            elif ts>0 and self.nodes[0][nodeA]["ts"] == 0:
+                self.nodes[0][nodeA]["ts"] = ts
+
+            if not nodeB in self.nodes[1]:
+                self.nodes[1][nodeB] = { "name": str(nodeB), "ts": ts }
+            elif ts>0 and self.nodes[1][nodeB]["ts"] == 0:
+                self.nodes[1][nodeB]["ts"] = ts
         
         f.close()
 
@@ -67,7 +78,7 @@ class NetSource():
             row = line.strip("\r\n").split(self.delimiter)
             if len(row) != 2:
                 raise CommunitySourceError("Invalid number of fields: %d" % len(row))
-            self.nodes[nodeType][int(row[0])] = row[1].replace(' ','_')
+            self.nodes[nodeType][int(row[0])] = { "name": row[1].replace(' ','_'), "ts": 0 }
         
         f.close()
     

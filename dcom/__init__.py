@@ -221,13 +221,13 @@ def main(args):
                                 options['partition'])
         print "Feed %d links into network" % (len(src.links))
         if options['library']=='x':
-            net = NetworkX(options)
-        elif options['library']=='ig':
-            net = NetworkIG(int(options['period']))
+            net = NetworkX(options, src)
+# igraph not supported
+#        elif options['library']=='ig':
+#            net = NetworkIG(int(options['period']))
         else:
             raise CommunitySourceError("Invalid library: %s" % (options['library']))
         
-        net.setPartition(src.partition)
         for link in src.links:
             net.addLink(link[0], link[1], link[2], link[3])
         net.flush()
