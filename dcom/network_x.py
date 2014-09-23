@@ -58,6 +58,8 @@ class NetworkX():
         self.initDelay = int(options['onlineinit'])
         self.initDone = False
         self.orderedNodes = [ [], [] ]
+        self.changedNodes = []
+        self.biadj_mx = None
         self.rtU,self.rtS,self.rtV = None, None, None
 
     def addLink(self, nodeA, nodeB, ts=None, weight=1):
@@ -73,30 +75,50 @@ class NetworkX():
         self.__updateNode(nodeA, 0, ts, hadNodeA)
         self.__updateNode(nodeB, 1, ts, hadNodeB)
 
-        if not self.initDone and len(self.G.edges())>=self.initDelay:
-            print "Init cluster"
-            self.__rtClusterInit()
-            self.initDone = True
+        if not self.initDone:
+            if len(self.G.edges())>=self.initDelay:
+                print "Init cluster for network with", len(self.G.edges()), "edges"
+                self.__rtClusterInit(self.nclusters)
+                self.initDone = True
         else:
-            self.__rtClusterUpdate()
+            self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)
 
         if not self.metrics is None:
             self.metrics.newEventPost(nodeA, nodeB, ts)
 
-    def __rtClusterInit(self):
+    def __rtClusterInit(self, k):
         G = self.G
-        biadj_mx = bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1])
+        self.biadj_mx = bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]).copy()
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
-        An = self.__normalize(biadj_mx, D1, D2)
-        print "Cluster init: adjacency matrix", biadj_mx.shape
+        An = self.__normalize(self.biadj_mx, D1, D2)
+        print "Cluster init: adjacency matrix", self.biadj_mx.shape
 
-        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, self.nclusters)
+        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, k)
         self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
         self.rtV = Vt.T
 
-    def __rtClusterUpdate(self):
-        # TODO
-        pass
+    def __rtClusterUpdate(self, nodeA, nodeB, hadNodeA, hadNodeB, k):
+        G = self.G
+#        D2 = self.__degree_matrix(G.degree(self.orderedNodes[1]).values())
+        degreeA = G.degree(nodeA)
+        degreeB= G.degree(nodeB)
+        nodesA_count = len(self.orderedNodes[0])
+        nodesB_count = len(self.orderedNodes[1])
+        indexA = self.orderedNodes[0].index(nodeA)
+        indexB = self.orderedNodes[1].index(nodeB)
+#        Ani = self.__normalize(bipartite.biadjacency_matrix(G, row_order=[nodeA]), scipy.sparse.csc_matrix(G.degree(nodeA)),D2)
+        Ani = numpy.zeros(nodesB_count)
+        print Ani
+        Ani[indexB] = degreeA * degreeB - (degreeA-1) * (degreeB-1) # second term is zero if either A or B are new nodes
+        print "Cluster update"
+        U_0 = self.rtU if hadNodeA else numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(k))),axis=0)
+        V_0 = self.rtV if hadNodeB else numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(k))),axis=0)
+        nodesA_count = len(self.orderedNodes[0])
+        a = numpy.matrix(numpy.zeros(nodesA_count)).T
+        a[indexA] = 1
+        b = Ani
+        print self.rtV.T.shape,b.T.shape
+        self.rtU,self.rtS,self.rtV = self.__svdUpdate(U_0,self.rtS,V_0,a,b)
 
     def flush(self):
         pass
