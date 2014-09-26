@@ -74,6 +74,7 @@ class NetworkX():
         
         self.__updateNode(nodeA, 0, ts, hadNodeA)
         self.__updateNode(nodeB, 1, ts, hadNodeB)
+        print "New edge", nodeA,"-",nodeB
 
         if not self.initDone:
             if len(self.G.edges())>=self.initDelay:
@@ -92,6 +93,9 @@ class NetworkX():
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(self.biadj_mx, D1, D2)
         print "Cluster init: adjacency matrix", self.biadj_mx.shape
+        print D1.todense()
+        print self.biadj_mx
+        print D2.todense() 
 
         self.rtU,S,Vt = scipy.sparse.linalg.svds(An, k)
         self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
@@ -99,25 +103,28 @@ class NetworkX():
 
     def __rtClusterUpdate(self, nodeA, nodeB, hadNodeA, hadNodeB, k):
         G = self.G
-#        D2 = self.__degree_matrix(G.degree(self.orderedNodes[1]).values())
+        D1 = self.__degree_matrix(G, self.orderedNodes[0])
+        D2 = self.__degree_matrix(G, self.orderedNodes[1])
         degreeA = G.degree(nodeA)
         degreeB= G.degree(nodeB)
         nodesA_count = len(self.orderedNodes[0])
         nodesB_count = len(self.orderedNodes[1])
         indexA = self.orderedNodes[0].index(nodeA)
         indexB = self.orderedNodes[1].index(nodeB)
-#        Ani = self.__normalize(bipartite.biadjacency_matrix(G, row_order=[nodeA]), scipy.sparse.csc_matrix(G.degree(nodeA)),D2)
+        print "Cluster update", indexA+1,"-",indexB+1,"sizes",nodesA_count,"X",nodesB_count       
+        print D1.todense()
+        print bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0],column_order=self.orderedNodes[1])
+        print D2.todense()
+#        print self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0],column_order=self.orderedNodes[1]),D1,D2).todense()
         Ani = numpy.zeros(nodesB_count)
+        Ani[indexB] = math.sqrt(degreeA) * math.sqrt(degreeB) - math.sqrt(degreeA-1) * math.sqrt(degreeB-1) # second term is zero if either A or B are new nodes
         print Ani
-        Ani[indexB] = degreeA * degreeB - (degreeA-1) * (degreeB-1) # second term is zero if either A or B are new nodes
-        print "Cluster update"
         U_0 = self.rtU if hadNodeA else numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(k))),axis=0)
         V_0 = self.rtV if hadNodeB else numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(k))),axis=0)
         nodesA_count = len(self.orderedNodes[0])
         a = numpy.matrix(numpy.zeros(nodesA_count)).T
         a[indexA] = 1
         b = Ani
-        print self.rtV.T.shape,b.T.shape
         self.rtU,self.rtS,self.rtV = self.__svdUpdate(U_0,self.rtS,V_0,a,b)
 
     def flush(self):
@@ -156,14 +163,18 @@ class NetworkX():
         print "Initialization done" 
         return numpy.array(seeds)
 
-    def __degree_matrix(self, degrees):
-        return scipy.sparse.csc_matrix(numpy.sqrt(numpy.diag(degrees)))
+    def __degree_matrix(self, G, nodes):
+        degreesMap = G.degree(nodes)
+        degreesOrdered = [degreesMap[k] for k in nodes]
+        return scipy.sparse.csc_matrix(numpy.sqrt(numpy.diag(degreesOrdered)))
 
-    def __get_nodes_and_degrees(self, G):
-        nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
-        nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        D1 = self.__degree_matrix(G.degree(nodes1).values())
-        D2 = self.__degree_matrix(G.degree(nodes2).values())
+    def __get_nodes_and_degrees(self, G, nodes1=None, nodes2=None):
+        if nodes1 is None:
+            nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
+        if nodes2 is None:
+            nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
+        D1 = self.__degree_matrix(G, nodes1)
+        D2 = self.__degree_matrix(G, nodes2)
         return nodes1,nodes2,D1,D2
 
     def __normalize(self, A, D1, D2):
@@ -198,15 +209,6 @@ class NetworkX():
 
     def __cluster_get(self, Z, model):
         return model.predict(Z)
-
-    def __get_nodes_and_degrees(self, G, nodes1=None, nodes2=None):
-        if nodes1 is None:
-            nodes1 = [n for n,d in G.nodes(data=True) if d["type"]==0]
-        if nodes2 is None:
-            nodes2 = [n for n,d in G.nodes(data=True) if d["type"]==1]
-        D1 = self.__degree_matrix(G.degree(nodes1).values())
-	D2 = self.__degree_matrix(G.degree(nodes2).values())
-        return nodes1,nodes2,D1,D2
 
     def findPartitionCoClust(self, ntype, k):
         G = self.normalizeTfIdf()
