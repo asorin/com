@@ -59,6 +59,8 @@ def parse_args(args):
             help=('number of nodes to start the online clustering'))
     parser.add_argument('-os', '--onlinestep', action='store', default=1,
             help=('number of nodes in each step for online clustering'))
+    parser.add_argument('-rt', '--real-time', action='store', default=0,
+            help=('specify whether real-time or not'))
 
 
     return parser.parse_args(args)

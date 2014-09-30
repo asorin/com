@@ -54,6 +54,7 @@ class NetworkX():
 
         self.nodeLabels = src.nodes
         self.partition = src.partition
+        self.realTime = int(options['real_time'])
         self.nclusters = int(options['nclusters'])
         self.initDelay = int(options['onlineinit'])
         self.initDone = False
@@ -74,15 +75,16 @@ class NetworkX():
         
         self.__updateNode(nodeA, 0, ts, hadNodeA)
         self.__updateNode(nodeB, 1, ts, hadNodeB)
-        print "New edge", nodeA,"-",nodeB
+        print "New edge", nodeA,"-",nodeB, "(",self.orderedNodes[0].index(nodeA)+1,"X",self.orderedNodes[1].index(nodeB)+1,")"
 
-        if not self.initDone:
-            if len(self.G.edges())>=self.initDelay:
-                print "Init cluster for network with", len(self.G.edges()), "edges"
-                self.__rtClusterInit(self.nclusters)
-                self.initDone = True
-        else:
-            self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)
+        if self.realTime:
+            if not self.initDone:
+                if len(self.G.edges())>=self.initDelay:
+                    print "Init cluster for network with", len(self.G.edges()), "edges"
+                    self.__rtClusterInit(self.nclusters)
+                    self.initDone = True
+            else:
+                self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)
 
         if not self.metrics is None:
             self.metrics.newEventPost(nodeA, nodeB, ts)
@@ -93,9 +95,10 @@ class NetworkX():
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(self.biadj_mx, D1, D2)
         print "Cluster init: adjacency matrix", self.biadj_mx.shape
-        print D1.todense()
-        print self.biadj_mx
-        print D2.todense() 
+#        print D1.todense()
+#        print self.biadj_mx
+#        print D2.todense() 
+        print An.todense()
 
         self.rtU,S,Vt = scipy.sparse.linalg.svds(An, k)
         self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
@@ -106,19 +109,25 @@ class NetworkX():
         D1 = self.__degree_matrix(G, self.orderedNodes[0])
         D2 = self.__degree_matrix(G, self.orderedNodes[1])
         degreeA = G.degree(nodeA)
-        degreeB= G.degree(nodeB)
         nodesA_count = len(self.orderedNodes[0])
         nodesB_count = len(self.orderedNodes[1])
         indexA = self.orderedNodes[0].index(nodeA)
         indexB = self.orderedNodes[1].index(nodeB)
-        print "Cluster update", indexA+1,"-",indexB+1,"sizes",nodesA_count,"X",nodesB_count       
-        print D1.todense()
-        print bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0],column_order=self.orderedNodes[1])
-        print D2.todense()
+        print "Cluster update", indexA+1,"-",indexB+1,"sizes",nodesA_count,"X",nodesB_count,", degrees",degreeA,"X",G.degree(nodeB)
+#        print "Degrees:" 
+#        print D1.diagonal()
+#        print D2.diagonal()
 #        print self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0],column_order=self.orderedNodes[1]),D1,D2).todense()
+#        print "Update line:"
         Ani = numpy.zeros(nodesB_count)
-        Ani[indexB] = math.sqrt(degreeA) * math.sqrt(degreeB) - math.sqrt(degreeA-1) * math.sqrt(degreeB-1) # second term is zero if either A or B are new nodes
-        print Ani
+        for i in range(0,nodesB_count):
+            objNode = self.orderedNodes[1][i]
+            if G.has_edge(nodeA, objNode):
+                degreeObjNode = G.degree(objNode)
+                prevDegreeObj = 0 if i==indexB else degreeObjNode
+                Ani[i] = math.sqrt(degreeA*degreeObjNode)-math.sqrt((degreeA-1)*prevDegreeObj)
+        # TODO add k-means to incremental version and test
+#        print indexA+1,":",Ani
         U_0 = self.rtU if hadNodeA else numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(k))),axis=0)
         V_0 = self.rtV if hadNodeB else numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(k))),axis=0)
         nodesA_count = len(self.orderedNodes[0])
