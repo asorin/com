@@ -54,13 +54,12 @@ class NetworkX():
 
         self.nodeLabels = src.nodes
         self.partition = src.partition
-        self.realTime = int(options['real_time'])
+        self.realTime = (options['action']=="partition-real-time")
         self.nclusters = int(options['nclusters'])
         self.initDelay = int(options['onlineinit'])
         self.initDone = False
         self.orderedNodes = [ [], [] ]
         self.changedNodes = []
-        self.biadj_mx = None
         self.rtU,self.rtS,self.rtV = None, None, None
 
     def addLink(self, nodeA, nodeB, ts=None, weight=1):
@@ -75,7 +74,7 @@ class NetworkX():
         
         self.__updateNode(nodeA, 0, ts, hadNodeA)
         self.__updateNode(nodeB, 1, ts, hadNodeB)
-        print "New edge", nodeA,"-",nodeB, "(",self.orderedNodes[0].index(nodeA)+1,"X",self.orderedNodes[1].index(nodeB)+1,")"
+#        print "New edge", nodeA,"-",nodeB, "(",self.orderedNodes[0].index(nodeA)+1,"X",self.orderedNodes[1].index(nodeB)+1,")"
 
         if self.realTime:
             if not self.initDone:
@@ -91,14 +90,10 @@ class NetworkX():
 
     def __rtClusterInit(self, k):
         G = self.G
-        self.biadj_mx = bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]).copy()
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
-        An = self.__normalize(self.biadj_mx, D1, D2)
-        print "Cluster init: adjacency matrix", self.biadj_mx.shape
-#        print D1.todense()
-#        print self.biadj_mx
-#        print D2.todense() 
-        print An.todense()
+        An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
+        print "Cluster init: adjacency matrix", An.shape
+#        print An.todense()
 
         self.rtU,S,Vt = scipy.sparse.linalg.svds(An, k)
         self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
@@ -106,19 +101,13 @@ class NetworkX():
 
     def __rtClusterUpdate(self, nodeA, nodeB, hadNodeA, hadNodeB, k):
         G = self.G
-        D1 = self.__degree_matrix(G, self.orderedNodes[0])
-        D2 = self.__degree_matrix(G, self.orderedNodes[1])
         degreeA = G.degree(nodeA)
         nodesA_count = len(self.orderedNodes[0])
         nodesB_count = len(self.orderedNodes[1])
         indexA = self.orderedNodes[0].index(nodeA)
         indexB = self.orderedNodes[1].index(nodeB)
-        print "Cluster update", indexA+1,"-",indexB+1,"sizes",nodesA_count,"X",nodesB_count,", degrees",degreeA,"X",G.degree(nodeB)
-#        print "Degrees:" 
-#        print D1.diagonal()
-#        print D2.diagonal()
+#        print "Cluster update", indexA+1,"-",indexB+1,"sizes",nodesA_count,"X",nodesB_count,", degrees",degreeA,"X",G.degree(nodeB)
 #        print self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0],column_order=self.orderedNodes[1]),D1,D2).todense()
-#        print "Update line:"
         Ani = numpy.zeros(nodesB_count)
         for i in range(0,nodesB_count):
             objNode = self.orderedNodes[1][i]
@@ -191,10 +180,11 @@ class NetworkX():
         return D1.dot(A).dot(D2)
 
     def __get_partition_from_index(self, idx, nodesLabels):
-        print idx
         self.partition = {}
         for i in range(0, len(idx)):
             self.partition[nodesLabels[i]] = idx[i]
+
+        print numpy.array([self.partition[key] for key in sorted(self.partition)])
         return self.partition
 
     def __cluster(self, Z, k):
@@ -321,6 +311,15 @@ class NetworkX():
         Sp = tSp
     
         return Up, Sp, Vp
+
+    def findPartitionRealTime(self, k):
+        D1 = self.__degree_matrix(self.G, self.orderedNodes[0])
+        Z = numpy.dot(D1.todense(),self.rtU)
+        print "got the Z matrix of shape", Z.shape
+        wZ = normalize(Z,axis=1)
+        print wZ
+        idx = self.__cluster(wZ,k)
+        return self.__get_partition_from_index(idx, self.orderedNodes[0])
 
     def findPartitionIncremental(self, k, init):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
