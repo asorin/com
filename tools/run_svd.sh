@@ -7,9 +7,8 @@ clusters=`echo $3 | awk -F"-" '{print $1,$2}'`
 onlineinit=$4
 onlinestep=$5
 
-categ=`echo $ds | cut -d'/' -f1`
-data=`echo $ds | cut -d'/' -f2`
-
+categ=`echo $ds | rev | cut -d'/' -f2- | rev`
+data=`echo $ds | rev | cut -d'/' -f1 | rev`
 root=~/work/com/data/$categ
 dir=$root/svd-static
 ground_file=${root}/${data}.communities.ground
