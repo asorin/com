@@ -37,7 +37,7 @@ def parse_args(args):
             help=('the file containing details of second nodes'))
     parser.add_argument('-d', '--delimiter', action='store', default='\t',
             help=('delimiter of fields (default is tab)'))
-    parser.add_argument('-o', '--output', action='store', default=None,
+    parser.add_argument('-o', '--output', action='store', required=True,
             help=('output file'))
     parser.add_argument('-a', '--action', action='store', default="metrics",
             help=('action to be performed'))
@@ -59,8 +59,8 @@ def parse_args(args):
             help=('number of nodes to start the online clustering'))
     parser.add_argument('-os', '--onlinestep', action='store', default=1,
             help=('number of nodes in each step for online clustering'))
-    parser.add_argument('-rt', '--real-time', action='store', default=0,
-            help=('specify whether real-time or not'))
+    parser.add_argument('-ts', '--timestep', action='store', default=0,
+            help=('specify the time step for generating clusters'))
 
 
     return parser.parse_args(args)
@@ -77,7 +77,7 @@ def read_config(options):
 
 def do_metrics(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     delimiter = options['delimiter']
     
 #    outf.write(delimiter.join(net.metrics.getNames()) + "\n")
@@ -89,7 +89,7 @@ def do_metrics(options):
 
 def do_partition_louvain_ntype(options, ntype, startGroup):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     threshold = options['partition_threshold']
 #    src = options['source']
     delimiter = options['delimiter']
@@ -125,17 +125,24 @@ def write_partition(outf, partition):
 
 def do_partition_svd(options):
     net = options['network']
-    outf = options['output_file']
+    outfname = options['output']
     ntype = int(options['ntype'])
     nclusters = int(options['nclusters'])
+    ts = int(options['timestep'])
 
-    partition = net.findPartitionSVD(ntype, nclusters)
-    if partition!=None:
-        write_partition(outf, partition)
+    if ts==0:
+        partition = net.findPartitionSVD(ntype, nclusters)
+        if partition!=None:
+            write_partition(open(outfname,"w"), partition)
+    else:
+        idx=1
+        for partition in net.getPartitionTsList():
+            write_partition(open(outfname+"."+str(idx),"w"), partition)
+            idx += 1
 
 def do_partition_lsi(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     ntype = int(options['ntype'])
     nclusters = int(options['nclusters'])
 
@@ -145,7 +152,7 @@ def do_partition_lsi(options):
 
 def do_partition_coclust(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     ntype = int(options['ntype'])
     nclusters = int(options['nclusters'])
 
@@ -154,7 +161,7 @@ def do_partition_coclust(options):
 
 def do_partition_online(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     ntype = int(options['ntype'])
     nclusters = int(options['nclusters'])
     online_init_nodes = int(options['onlineinit'])
@@ -166,7 +173,7 @@ def do_partition_online(options):
 
 def do_partition_incremental(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     ntype = int(options['ntype'])
     nclusters = int(options['nclusters'])
     online_init_nodes = int(options['onlineinit'])
@@ -177,35 +184,42 @@ def do_partition_incremental(options):
 
 def do_partition_real_time(options):
     net = options['network']
-    outf = options['output_file']
+    outfname = options['output']
     ntype = int(options['ntype'])
     nclusters = int(options['nclusters'])
+    ts = int(options['timestep'])
 
-    partition = net.findPartitionRealTime(nclusters)
-    if partition!=None:
-        write_partition(outf, partition)
+    if ts==0:
+        partition = net.findPartitionRealTime(nclusters)
+        if partition!=None:
+            write_partition(open(outfname,"w"), partition)
+    else:
+        idx=1
+        for partition in net.getPartitionTsList():
+            write_partition(open(outfname+"."+str(idx),"w"), partition)
+            idx += 1
 
 def do_save(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     node = options['node']
     net.save(outf, node)
 
 def do_save_prj(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     ntype = int(options['ntype'])
     net.savePrjWeighted(ntype, outf)
 
 def do_save_prj_colisted(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     ntype = int(options['ntype'])
     net.savePrjCoCit(ntype, outf)
 
 def do_transform(options):
     net = options['network']
-    outf = options['output_file']
+    outf = open(options['output'],"w")
     net.transformTfIdf(outf)
         
 def main(args):
@@ -217,11 +231,6 @@ def main(args):
         print "Invalid action: ", options['action']
         sys.exit(1)
     
-    outf = sys.stdout
-    if options['output']:
-        outf = open(options['output'],"w")
-    options['output_file'] = outf
-
     options['partition_ntype'] = 1
     options['partition_threshold'] = 1
     
@@ -247,8 +256,6 @@ def main(args):
         options['source'] = src
         
         actions[options['action']](options)
-        
-        outf.close()
         
     except CommunitySourceError as e:
         print e.value
