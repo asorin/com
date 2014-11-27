@@ -57,7 +57,10 @@ class NetworkX():
         self.realTime = (options['action']=="partition-real-time")
         self.nclusters = int(options['nclusters'])
         self.initDelay = int(options['onlineinit'])
+        self.rtTimeStep = int(options['timestep'])
         self.initDone = False
+        self.partitionList = []
+        self.edgesCount = 0
         self.orderedNodes = [ [], [] ]
         self.changedNodes = []
         self.rtU,self.rtS,self.rtV = None, None, None
@@ -71,19 +74,27 @@ class NetworkX():
         hadNodeB = nodeB in self.G
 
         self.G.add_edge(nodeA, nodeB, timestamp=ts, weight=weight)
+        self.edgesCount += 1
         
         self.__updateNode(nodeA, 0, ts, hadNodeA)
         self.__updateNode(nodeB, 1, ts, hadNodeB)
 #        print "New edge", nodeA,"-",nodeB, "(",self.orderedNodes[0].index(nodeA)+1,"X",self.orderedNodes[1].index(nodeB)+1,")"
 
+        # TODO implement time-steps where k-means is applied at each step, for both batch svd and real-time
+
         if self.realTime:
             if not self.initDone:
-                if len(self.G.edges())>=self.initDelay:
+                if self.edgesCount>=self.initDelay:
                     print "Init cluster for network with", len(self.G.edges()), "edges"
                     self.__rtClusterInit(self.nclusters)
                     self.initDone = True
             else:
                 self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)
+                if self.rtTimeStep>0 and self.edgesCount % self.rtTimeStep == 0:
+                    print "Calculating partitions for time step at", self.edgesCount, "edges"
+                    rtPartition = self.findPartitionRealTime(self.nclusters)
+                    svdPartition = self.findPartitionSVD(0, self.nclusters)
+                    self.partitionList.append( {"rt": rtPartition, "svd": svdPartition} )
 
         if not self.metrics is None:
             self.metrics.newEventPost(nodeA, nodeB, ts)
@@ -92,7 +103,7 @@ class NetworkX():
         G = self.G
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
-        print "Cluster init: adjacency matrix", An.shape
+        #print "Cluster init: adjacency matrix", An.shape
 #        print An.todense()
 
         self.rtU,S,Vt = scipy.sparse.linalg.svds(An, k)
@@ -223,15 +234,15 @@ class NetworkX():
 #        G = self.normalizeTfIdf()
         G = self.G
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G)
-        print "Adjacency matrix", len(nodes1), len(nodes2)
+        #print "Adjacency matrix", len(nodes1), len(nodes2)
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=nodes1), D1, D2)
-        print "SVD decomposition of A"
+        #print "SVD decomposition of A"
         Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k)#round(math.log(len(nodes2)),0)-2+k)
 #        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
         Z = numpy.dot(D1.todense(),Uk) if ntype==0 else numpy.dot(D2.todense(),Vk)
-        print "got the Z matrix of shape", Z.shape
+        #print "got the Z matrix of shape", Z.shape
         wZ = normalize(Z,axis=1)
-        print wZ
+        #print wZ
         idx = self.__cluster(wZ,k)
 
         return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
@@ -315,11 +326,14 @@ class NetworkX():
     def findPartitionRealTime(self, k):
         D1 = self.__degree_matrix(self.G, self.orderedNodes[0])
         Z = numpy.dot(D1.todense(),self.rtU)
-        print "got the Z matrix of shape", Z.shape
+        #print "got the Z matrix of shape", Z.shape
         wZ = normalize(Z,axis=1)
-        print wZ
+        #print wZ
         idx = self.__cluster(wZ,k)
         return self.__get_partition_from_index(idx, self.orderedNodes[0])
+
+    def getPartitionTsList(self):
+        return self.partitionList
 
     def findPartitionIncremental(self, k, init):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -346,7 +360,7 @@ class NetworkX():
         Z = numpy.dot(D1.todense(),U) 
         print "got the Z matrix of shape", Z.shape
         wZ = normalize(Z,axis=1)
-        print wZ
+        #print wZ
         idx = self.__cluster(wZ,k)
         return self.__get_partition_from_index(idx, nodes1)
 

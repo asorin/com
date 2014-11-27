@@ -195,8 +195,9 @@ def do_partition_real_time(options):
             write_partition(open(outfname,"w"), partition)
     else:
         idx=1
-        for partition in net.getPartitionTsList():
-            write_partition(open(outfname+"."+str(idx),"w"), partition)
+        for partitions in net.getPartitionTsList():
+            write_partition(open(outfname+".rt."+str(idx),"w"), partitions["rt"])
+            write_partition(open(outfname+".svd."+str(idx),"w"), partitions["svd"])
             idx += 1
 
 def do_save(options):
