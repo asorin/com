@@ -91,13 +91,14 @@ class NetworkX():
             else:
                 self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)
                 if self.rtTimeStep>0 and self.edgesCount % self.rtTimeStep == 0:
-                    print "Calculating partitions for time step at", self.edgesCount, "edges"
-                    rtPartition = self.findPartitionRealTime(self.nclusters)
-                    svdPartition = self.findPartitionSVD(0, self.nclusters)
-                    self.partitionList.append( {"rt": rtPartition, "svd": svdPartition} )
+                    self.partitionList.append(self.__getRtComparePartitions(self.nclusters))
 
         if not self.metrics is None:
             self.metrics.newEventPost(nodeA, nodeB, ts)
+
+    def __getRtComparePartitions(self, k):
+        print "Calculating partitions for time step at", self.edgesCount, "edges"
+        return {"rt": self.findPartitionRealTime(k), "svd": self.findPartitionSVD(0, k)}
 
     def __rtClusterInit(self, k):
         G = self.G
@@ -333,6 +334,7 @@ class NetworkX():
         return self.__get_partition_from_index(idx, self.orderedNodes[0])
 
     def getPartitionTsList(self):
+        self.partitionList.append(self.__getRtComparePartitions(self.nclusters))
         return self.partitionList
 
     def findPartitionIncremental(self, k, init):
