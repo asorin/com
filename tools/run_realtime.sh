@@ -20,14 +20,15 @@ out_file=$dir/${data}.communities
 mutual_file=$dir/${data}.mutual
 
 #rm -f ${mutual_file}
-edges=`wc -l ${in_file} | cut -d ' ' -f 1`
+edgestotal=`wc -l ${in_file} | cut -d ' ' -f 1`
+edges=`expr $edgestotal - $init`
 steps=`expr 1 + $edges / $timestep`
 
 mkdir -p $dir
 for k in `seq $clusters`; do
 #  if [ ! -f $out_file.${k} ]; then
     if [ "$#" -ge 4 ]; then
-        extra="-oi $onlineinit -ts $timestep"
+        extra="-oi $init -ts $timestep"
     fi
     bin/dcom -l ${in_file} -o ${out_file}.k${k} -a partition-real-time -nc $k -nt 0 $extra >> $log 2>&1
 #  fi

@@ -85,12 +85,12 @@ class NetworkX():
         if self.realTime:
             if not self.initDone:
                 if self.edgesCount>=self.initDelay:
-                    print "Init cluster for network with", len(self.G.edges()), "edges"
+                    print "Init cluster for network with", self.edgesCount, "edges (timestep is", self.rtTimeStep, "edges)"
                     self.__rtClusterInit(self.nclusters)
                     self.initDone = True
             else:
                 self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)
-                if self.rtTimeStep>0 and self.edgesCount % self.rtTimeStep == 0:
+                if self.rtTimeStep>0 and (self.edgesCount-self.initDelay) % self.rtTimeStep == 0:
                     self.partitionList.append(self.__getRtComparePartitions(self.nclusters))
 
         if not self.metrics is None:
