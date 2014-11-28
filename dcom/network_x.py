@@ -80,13 +80,14 @@ class NetworkX():
         self.__updateNode(nodeB, 1, ts, hadNodeB)
 #        print "New edge", nodeA,"-",nodeB, "(",self.orderedNodes[0].index(nodeA)+1,"X",self.orderedNodes[1].index(nodeB)+1,")"
 
-        # TODO implement time-steps where k-means is applied at each step, for both batch svd and real-time
+        # implement time-steps where k-means is applied at each step, for both batch svd and real-time
 
         if self.realTime:
             if not self.initDone:
                 if self.edgesCount>=self.initDelay:
                     print "Init cluster for network with", self.edgesCount, "edges (timestep is", self.rtTimeStep, "edges)"
                     self.__rtClusterInit(self.nclusters)
+                    self.partitionList.append(self.__getRtComparePartitions(self.nclusters))
                     self.initDone = True
             else:
                 self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)

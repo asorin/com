@@ -22,7 +22,7 @@ mutual_file=$dir/${data}.mutual
 #rm -f ${mutual_file}
 edgestotal=`wc -l ${in_file} | cut -d ' ' -f 1`
 edges=`expr $edgestotal - $init`
-steps=`expr 1 + $edges / $timestep`
+steps=`expr 2 + $edges / $timestep`
 
 mkdir -p $dir
 for k in `seq $clusters`; do
