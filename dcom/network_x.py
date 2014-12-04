@@ -89,6 +89,8 @@ class NetworkX():
                     self.__rtClusterInit(self.nclusters)
                     self.partitionList.append(self.__getRtComparePartitions(self.nclusters))
                     self.initDone = True
+                    print "Adj matrices are equal", (self.rtAn==self.svdAn).all()
+                    print "SVD projections U are equal", (self.rtU==self.svdU).all(), self.rtU.shape, self.svdU.shape
             else:
                 self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)
                 if self.rtTimeStep>0 and (self.edgesCount-self.initDelay) % self.rtTimeStep == 0:
@@ -105,7 +107,8 @@ class NetworkX():
         G = self.G
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
-        #print "Cluster init: adjacency matrix", An.shape
+        self.rtAn = An.todense()
+        print "Cluster init: adjacency matrix", An.shape
 #        print An.todense()
 
         self.rtU,S,Vt = scipy.sparse.linalg.svds(An, k)
@@ -235,11 +238,15 @@ class NetworkX():
     def findPartitionSVD(self, ntype, k):
 #        G = self.normalizeTfIdf()
         G = self.G
-        nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G)
+        nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         #print "Adjacency matrix", len(nodes1), len(nodes2)
-        An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=nodes1), D1, D2)
+        #An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=nodes1, column_order=nodes2), D1, D2)
+        An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
+        self.svdAn = An.todense()
+        print "Adjacency matrix", An.shape
         #print "SVD decomposition of A"
         Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k)#round(math.log(len(nodes2)),0)-2+k)
+        self.svdU = Uk
 #        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
         Z = numpy.dot(D1.todense(),Uk) if ntype==0 else numpy.dot(D2.todense(),Vk)
         #print "got the Z matrix of shape", Z.shape
