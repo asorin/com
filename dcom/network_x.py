@@ -20,7 +20,6 @@ import pickle
 import os
 
 import kmeans
-import spectral
 import scipy
 import scipy.sparse.linalg
 
@@ -29,7 +28,7 @@ from sklearn.cluster.bicluster import SpectralCoclustering
 from sklearn.preprocessing import normalize, scale
 
 from sklearn.metrics.pairwise import cosine_similarity,pairwise_distances
-
+from sparsesvd import sparsesvd
 import logging
 import gensim
 
@@ -89,8 +88,10 @@ class NetworkX():
                     self.__rtClusterInit(self.nclusters)
                     self.partitionList.append(self.__getRtComparePartitions(self.nclusters))
                     self.initDone = True
-                    print "Adj matrices are equal", (self.rtAn==self.svdAn).all()
-                    print "SVD projections U are equal", (self.rtU==self.svdU).all(), self.rtU.shape, self.svdU.shape
+#                    print "Adj matrices are equal", numpy.array_equal(self.rtAn.todense(),self.svdAn.todense())
+#                    print "SVD projections U are equal", numpy.array_equal(self.rtU,self.svdU), self.rtU.shape, self.svdU.shape
+#                    print "Z matrices are equal", numpy.array_equal(self.rtZ,self.svdZ)
+#                    print "Indexes from kmeans are equal", numpy.array_equal(self.rtIdx,self.svdIdx)
             else:
                 self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.nclusters)
                 if self.rtTimeStep>0 and (self.edgesCount-self.initDelay) % self.rtTimeStep == 0:
@@ -107,11 +108,9 @@ class NetworkX():
         G = self.G
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
-        self.rtAn = An.todense()
         print "Cluster init: adjacency matrix", An.shape
 #        print An.todense()
-
-        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, k)
+        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, k, v0=numpy.ones(min(An.shape)))
         self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
         self.rtV = Vt.T
 
@@ -204,14 +203,15 @@ class NetworkX():
         return self.partition
 
     def __cluster(self, Z, k):
-#        initC = self.initOrthoKmeans(Z, k)
+        initC = self.initOrthoKmeans(Z, k)
 #        print initC
-#        if len(initC) != k:
-#            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
-#            return {}
+        if len(initC) != k:
+            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
+            return {}
 #        centres, idx, dist = kmeans.kmeans(Z, initC, metric='cosine') #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
 
-        cl = KMeans(init='k-means++', n_clusters=k)
+#        cl = KMeans(init='k-means++', n_clusters=k)
+        cl = KMeans(init=initC, n_clusters=k)
 #        cl = Ward(n_clusters=k)
         idx = cl.fit_predict(Z)
         return idx
@@ -226,7 +226,7 @@ class NetworkX():
         return model.predict(Z)
 
     def findPartitionCoClust(self, ntype, k):
-        G = self.normalizeTfIdf()
+        G = self.G#normalizeTfIdf()
         nodes1, nodes2, _, _ = self.__get_nodes_and_degrees(G)
         A = bipartite.biadjacency_matrix(G, row_order=nodes1)
         print "Adjacency matrix", len(nodes1), len(nodes2)
@@ -242,11 +242,9 @@ class NetworkX():
         #print "Adjacency matrix", len(nodes1), len(nodes2)
         #An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=nodes1, column_order=nodes2), D1, D2)
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
-        self.svdAn = An.todense()
         print "Adjacency matrix", An.shape
         #print "SVD decomposition of A"
-        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k)#round(math.log(len(nodes2)),0)-2+k)
-        self.svdU = Uk
+        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, k, v0=numpy.ones(min(An.shape))) #round(math.log(len(nodes2)),0)+k)
 #        Z = numpy.concatenate((D1.dot(U[:,0:k]), D2.dot(V.transpose()[:,0:k])),axis=0)
         Z = numpy.dot(D1.todense(),Uk) if ntype==0 else numpy.dot(D2.todense(),Vk)
         #print "got the Z matrix of shape", Z.shape
