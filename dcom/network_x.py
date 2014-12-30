@@ -157,7 +157,7 @@ class NetworkX():
         print "Starting centroid initialization"
         selected = []
         seeds = [numpy.mean(D, axis=0).tolist()]
-        print "Centroid 0:", seeds[0]
+#        print "Centroid 0:", seeds[0]
         for idx in range(1,k):
             minSim = 1
             minSimObj = None
@@ -172,7 +172,7 @@ class NetworkX():
                 return []
             seeds.append(D[minSimObj].tolist())
             selected.append(minSimObj)
-            print "Centroid %d:" % (idx), seeds[idx], minSim
+#            print "Centroid %d:" % (idx), seeds[idx], minSim
         print "Initialization done" 
         return numpy.array(seeds)
 
