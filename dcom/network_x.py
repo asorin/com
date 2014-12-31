@@ -203,15 +203,15 @@ class NetworkX():
         return self.partition
 
     def __cluster(self, Z, k):
-        initC = self.initOrthoKmeans(Z, k)
+#        initC = self.initOrthoKmeans(Z, k)
 #        print initC
-        if len(initC) != k:
-            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
-            return {}
+#        if len(initC) != k:
+#            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
+#            return {}
 #        centres, idx, dist = kmeans.kmeans(Z, initC, metric='cosine') #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
 
-#        cl = KMeans(init='k-means++', n_clusters=k)
-        cl = KMeans(init=initC, n_clusters=k)
+        cl = KMeans(init='k-means++', n_clusters=k, random_state=23)
+#        cl = KMeans(init=initC, n_clusters=k)
 #        cl = Ward(n_clusters=k)
         idx = cl.fit_predict(Z)
         return idx
