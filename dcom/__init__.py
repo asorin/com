@@ -55,6 +55,8 @@ def parse_args(args):
             help=('node type'))
     parser.add_argument('-nc', '--nclusters', action='store', default=0,
             help=('number of clusters'))
+    parser.add_argument('-ndim', '--ndimensions', action='store', default=0,
+            help=('number of dimensions for reduction'))
     parser.add_argument('-oi', '--onlineinit', action='store', default=0,
             help=('number of nodes to start the online clustering'))
     parser.add_argument('-os', '--onlinestep', action='store', default=1,
@@ -249,7 +251,6 @@ def main(args):
 #            net = NetworkIG(int(options['period']))
         else:
             raise CommunitySourceError("Invalid library: %s" % (options['library']))
-        
         for link in src.links:
             net.addLink(link[0], link[1], link[2], link[3])
         net.flush()

@@ -3,8 +3,9 @@
 
 ds=$1
 clusters=`echo $2 | awk -F"-" '{print $1,$2}'`
-init=$3
-timestep=$4
+dimensions=$3
+init=$4
+timestep=$5
 
 categ=`echo $ds | rev | cut -d'/' -f2- | rev`
 data=`echo $ds | rev | cut -d'/' -f1 | rev`
@@ -30,7 +31,7 @@ for k in `seq $clusters`; do
     if [ "$#" -ge 4 ]; then
         extra="-oi $init -ts $timestep"
     fi
-    bin/dcom -l ${in_file} -o ${out_file}.k${k} -a partition-real-time -nc $k -nt 0 $extra >> $log 2>&1
+    bin/dcom -l ${in_file} -o ${out_file}.k${k} -a partition-real-time -nc $k -ndim $dimensions -nt 0 $extra >> $log 2>&1
 #  fi
   # calculate mutual information with ground trutuh
   for s in `seq $steps`; do
