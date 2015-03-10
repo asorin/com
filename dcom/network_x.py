@@ -135,17 +135,17 @@ class NetworkX():
         for objNode in nx.all_neighbors(G,nodeA):
             i = self.orderedNodes[1].index(objNode)
             degreeObjNode = G.degree(objNode)
-            prevDegreeObj = degreeObjNode-1 if i==indexB else degreeObjNode
+            prevDegreeObj = 0 if i==indexB else degreeObjNode
             Ani[i] = math.sqrt(degreeA*degreeObjNode)-math.sqrt((degreeA-1)*prevDegreeObj)
         # TODO add k-means to incremental version and test
-#        print indexA+1,":",Ani
         U_0 = self.rtU if hadNodeA else numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(ndim))),axis=0)
         V_0 = self.rtV if hadNodeB else numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(ndim))),axis=0)
         a = numpy.matrix(numpy.zeros(nodesA_count)).T
         a[indexA] = 1
-        b = Ani
+        b = numpy.asmatrix(Ani)
+#        print "New modification",indexA+1,":",a*b
         self.rtU,self.rtS,self.rtV = self.__svdUpdate(U_0,self.rtS,V_0,a,b)
-
+	
         Anj = numpy.zeros(nodesA_count)
         for usrNode in nx.all_neighbors(G,nodeB):
             if usrNode==nodeA:
@@ -153,9 +153,10 @@ class NetworkX():
             j = self.orderedNodes[0].index(usrNode)
             degreeUsrNode = G.degree(usrNode)
             Anj[j] = math.sqrt(degreeUsrNode*degreeB) - math.sqrt(degreeUsrNode*(degreeB-1))
-        a = Anj
-        b = numpy.matrix(numpy.zeros(nodesB_count)).T 
+        a = numpy.asmatrix(Anj).T
+        b = numpy.matrix(numpy.zeros(nodesB_count)).T
         b[indexB] = 1
+#        print "New modification",indexB+1,":",a*b.T
         self.rtU,self.rtS,self.rtV = self.__svdUpdate(self.rtU,self.rtS,self.rtV,a,b)
 
     def flush(self):
@@ -259,7 +260,7 @@ class NetworkX():
 #        G = self.normalizeTfIdf()
         _, _, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
-        print "Adjacency matrix", An.shape
+        print "Adjacency matrix", An.todense()
         Uk,Sk,Vk = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape))) #round(math.log(len(nodes2)),0)+k)
         return numpy.dot(D1.todense(),Uk) #if ntype==0 else numpy.dot(D2.todense(),Vk)
 
@@ -346,7 +347,23 @@ class NetworkX():
     
         return Up, Sp, Vp
 
+    def __forceOrtho(self, U, S, V):
+        print "We need to force orthogonality, might take some time"
+        rank = S.shape[1]
+        UQ, UR = numpy.linalg.qr( U )
+        VQ, VR = numpy.linalg.qr( V );
+        u, s, vt = numpy.linalg.svd( UR * S * VR.T, full_matrices = False )
+        tUp = numpy.matrix(u[:, :rank])
+        tVp = numpy.matrix(vt.T[:, :rank])
+        tSp = numpy.matrix(numpy.diag(s[: rank]))
+        Up = UQ * tUp
+        Vp = VQ * tVp
+        Sp = tSp
+        print "Orthogonality done"
+        return Up, Sp, Vp
+
     def __getEmbeddingRealTime(self):
+        self.rtU,self.rtS,self.rtV = self.__forceOrtho(self.rtU,self.rtS,self.rtV)
         D1 = self.__degree_matrix(self.G, self.orderedNodes[0])
         return numpy.dot(D1.todense(),self.rtU)
 
@@ -370,7 +387,8 @@ class NetworkX():
             print "Clustering at timestep",idx,"(",nc,"clusters), distance:", numpy.linalg.norm(rtEmbedding-svdEmbedding)
             numpy.savetxt("rtEmbedding.csv."+str(idx),rtEmbedding,delimiter=',')
             numpy.savetxt("svdEmbedding.csv."+str(idx),svdEmbedding,delimiter=',')
-            print svdEmbedding
+            print "SVD:", svdEmbedding
+            print "RT:", rtEmbedding
             partitionList.append( { "rt": self.__get_partition_from_index(self.__cluster(normalize(rtEmbedding,axis=1), nc), self.orderedNodes[0]),
                                     "svd": self.__get_partition_from_index(self.__cluster(normalize(svdEmbedding,axis=1), nc), self.orderedNodes[0]) } )
 
