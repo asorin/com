@@ -61,8 +61,9 @@ class NetworkX():
         if self.ndimensions==0:
             self.ndimensions = self.nclusters
         self.initDone = False
+        self.networkChangeDone = False
         self.partitionList = []
-        self.embeddingsMap = {}
+        self.embeddingsList = []
         self.edgesCount = 0
         self.orderedNodes = [ [], [] ]
         self.changedNodes = []
@@ -91,14 +92,13 @@ class NetworkX():
                     print "Init cluster for network with", self.edgesCount, "edges (timestep is", self.rtTimeStep, "edges)"
                     self.__rtClusterInit(self.ndimensions)
 #                    self.partitionList.append(self.__getRtComparePartitions(self.nclusters,self.ndimensions))
-                    self.embeddingsMap[self.edgesCount] = self.__getRtCompareEmbeddings(ndim)
+                    self.embeddingsList.append(self.__getRtCompareEmbeddings(self.ndimensions))
                     self.initDone = True
             else:
                 self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.ndimensions)
                 if self.rtTimeStep>0 and (self.edgesCount-self.initDelay) % self.rtTimeStep == 0:
  #                   self.partitionList.append(self.__getRtComparePartitions(self.nclusters,self.ndimensions))
-                    self.embeddingsMap[self.edgesCount] = self.__getRtCompareEmbeddings(ndim)
-		#TODO add clustering on map of embeddings 
+                    self.embeddingsList.append(self.__getRtCompareEmbeddings(self.ndimensions))
 
         if not self.metrics is None:
             self.metrics.newEventPost(nodeA, nodeB, ts)
@@ -109,7 +109,7 @@ class NetworkX():
 
     def __getRtCompareEmbeddings(self, ndim):
         print "Calculating embeddings for time step at", self.edgesCount, "edges"
-        return {"rt": self.__getEmbeddingRealTime(ndim), "svd": self.__getEmbeddingSVD(ndim)}
+        return {"rt": self.__getEmbeddingRealTime(), "svd": self.__getEmbeddingSVD(ndim)}
 
     def __rtClusterInit(self, ndim):
         G = self.G
@@ -124,6 +124,7 @@ class NetworkX():
     def __rtClusterUpdate(self, nodeA, nodeB, hadNodeA, hadNodeB, ndim):
         G = self.G
         degreeA = G.degree(nodeA)
+        degreeB = G.degree(nodeB)
         nodesA_count = len(self.orderedNodes[0])
         nodesB_count = len(self.orderedNodes[1])
         indexA = self.orderedNodes[0].index(nodeA)
@@ -131,21 +132,31 @@ class NetworkX():
 #        print "Cluster update", indexA+1,"-",indexB+1,"sizes",nodesA_count,"X",nodesB_count,", degrees",degreeA,"X",G.degree(nodeB)
 #        print self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0],column_order=self.orderedNodes[1]),D1,D2).todense()
         Ani = numpy.zeros(nodesB_count)
-        for i in range(0,nodesB_count):
-            objNode = self.orderedNodes[1][i]
-            if G.has_edge(nodeA, objNode):
-                degreeObjNode = G.degree(objNode)
-                prevDegreeObj = 0 if i==indexB else degreeObjNode
-                Ani[i] = math.sqrt(degreeA*degreeObjNode)-math.sqrt((degreeA-1)*prevDegreeObj)
+        for objNode in nx.all_neighbors(G,nodeA):
+            i = self.orderedNodes[1].index(objNode)
+            degreeObjNode = G.degree(objNode)
+            prevDegreeObj = degreeObjNode-1 if i==indexB else degreeObjNode
+            Ani[i] = math.sqrt(degreeA*degreeObjNode)-math.sqrt((degreeA-1)*prevDegreeObj)
         # TODO add k-means to incremental version and test
 #        print indexA+1,":",Ani
         U_0 = self.rtU if hadNodeA else numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(ndim))),axis=0)
         V_0 = self.rtV if hadNodeB else numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(ndim))),axis=0)
-        nodesA_count = len(self.orderedNodes[0])
         a = numpy.matrix(numpy.zeros(nodesA_count)).T
         a[indexA] = 1
         b = Ani
         self.rtU,self.rtS,self.rtV = self.__svdUpdate(U_0,self.rtS,V_0,a,b)
+
+        Anj = numpy.zeros(nodesA_count)
+        for usrNode in nx.all_neighbors(G,nodeB):
+            if usrNode==nodeA:
+                continue
+            j = self.orderedNodes[0].index(usrNode)
+            degreeUsrNode = G.degree(usrNode)
+            Anj[j] = math.sqrt(degreeUsrNode*degreeB) - math.sqrt(degreeUsrNode*(degreeB-1))
+        a = Anj
+        b = numpy.matrix(numpy.zeros(nodesB_count)).T 
+        b[indexB] = 1
+        self.rtU,self.rtS,self.rtV = self.__svdUpdate(self.rtU,self.rtS,self.rtV,a,b)
 
     def flush(self):
         pass
@@ -161,7 +172,6 @@ class NetworkX():
         return not self.partition is None
    
     def initOrthoKmeans(self, D, k):
-        print "Starting centroid initialization"
         selected = []
         seeds = [numpy.mean(D, axis=0).tolist()]
 #        print "Centroid 0:", seeds[0]
@@ -180,7 +190,6 @@ class NetworkX():
             seeds.append(D[minSimObj].tolist())
             selected.append(minSimObj)
 #            print "Centroid %d:" % (idx), seeds[idx], minSim
-        print "Initialization done" 
         return numpy.array(seeds)
 
     def __degree_matrix(self, G, nodes):
@@ -206,7 +215,7 @@ class NetworkX():
         for i in range(0, len(idx)):
             self.partition[nodesLabels[i]] = idx[i]
 
-        print numpy.array([self.partition[key] for key in sorted(self.partition)])
+#        print numpy.array([self.partition[key] for key in sorted(self.partition)])
         return self.partition
 
     def __cluster(self, Z, k):
@@ -218,7 +227,7 @@ class NetworkX():
         centres, idx, dist = kmeans.kmeans(Z, initC, metric='cosine' ) #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
 
 #        cl = KMeans(init='k-means++', n_clusters=k, random_state=23, max_iter=1000, n_init=20, n_jobs=-1)
-#        cl = KMeans(init=initC, n_clusters=k)
+#        cl = KMeans(init='k-means++', n_clusters=k, random_state=23)
 #        cl = FeatureAgglomeration(n_clusters=k)
 #        cl = DBSCAN(eps=0.7, min_samples=1000, metric=spatial.distance.cosine)
 #        cl = AffinityPropagation()
@@ -252,13 +261,12 @@ class NetworkX():
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
         print "Adjacency matrix", An.shape
         Uk,Sk,Vk = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape))) #round(math.log(len(nodes2)),0)+k)
-        Z = numpy.dot(D1.todense(),Uk) #if ntype==0 else numpy.dot(D2.todense(),Vk)
-        return normalize(Z,axis=1)
+        return numpy.dot(D1.todense(),Uk) #if ntype==0 else numpy.dot(D2.todense(),Vk)
 
     def findPartitionSVD(self, ntype, nc, ndim=0):
         if ndim==0:
             ndim = nc
-        idx = self.__cluster(self.__getEmbeddingSVD(ndim), nc)
+        idx = self.__cluster(normalize(self.__getEmbeddingSVD(ndim),axis=1), nc)
 
         return self.__get_partition_from_index(idx, self.orderedNodes[0]) #if ntype==0 else nodes2)
 
@@ -340,16 +348,33 @@ class NetworkX():
 
     def __getEmbeddingRealTime(self):
         D1 = self.__degree_matrix(self.G, self.orderedNodes[0])
-        Z = numpy.dot(D1.todense(),self.rtU)
-        return normalize(Z,axis=1)
+        return numpy.dot(D1.todense(),self.rtU)
 
     def findPartitionRealTime(self, nc):
-        idx = self.__cluster(self.__getEmbeddingRealTime(), nc)
+        idx = self.__cluster(normalize(self.__getEmbeddingRealTime(),axis=1), nc)
         return self.__get_partition_from_index(idx, self.orderedNodes[0])
 
-    def getPartitionTsList(self):
-        self.partitionList.append(self.__getRtComparePartitions(self.nclusters,self.ndimensions))
-        return self.partitionList
+    def getPartitionTsList(self, nc=2):
+#        self.partitionList.append(self.__getRtComparePartitions(nclusters,self.ndimensions))
+        if (not self.networkChangeDone):
+            self.embeddingsList.append(self.__getRtCompareEmbeddings(self.ndimensions))
+            self.networkChangeDone = True
+        partitionList = []
+        idx=0
+        for embeddings in self.embeddingsList:
+            idx+=1
+            svdEmbedding = embeddings["svd"]
+            rtEmbedding = embeddings["rt"]
+#            rtEmbedding = numpy.fliplr(embeddings["rt"]) if idx>1 else embeddings["rt"] #normalize(embeddings["rt"],axis=1) #[:,0:nc]
+#            rtEmbedding[:,1] = -rtEmbedding[:,1] if idx>1 else rtEmbedding[:,1]
+            print "Clustering at timestep",idx,"(",nc,"clusters), distance:", numpy.linalg.norm(rtEmbedding-svdEmbedding)
+            numpy.savetxt("rtEmbedding.csv."+str(idx),rtEmbedding,delimiter=',')
+            numpy.savetxt("svdEmbedding.csv."+str(idx),svdEmbedding,delimiter=',')
+            print svdEmbedding
+            partitionList.append( { "rt": self.__get_partition_from_index(self.__cluster(normalize(rtEmbedding,axis=1), nc), self.orderedNodes[0]),
+                                    "svd": self.__get_partition_from_index(self.__cluster(normalize(svdEmbedding,axis=1), nc), self.orderedNodes[0]) } )
+
+        return partitionList
 
     def findPartitionIncremental(self, k, init):
 #        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)

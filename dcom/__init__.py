@@ -55,6 +55,10 @@ def parse_args(args):
             help=('node type'))
     parser.add_argument('-nc', '--nclusters', action='store', default=0,
             help=('number of clusters'))
+    parser.add_argument('-nc1', '--nclusters1', action='store', default=0,
+            help=('number of clusters min'))
+    parser.add_argument('-nc2', '--nclusters2', action='store', default=0,
+            help=('number of clusters max'))
     parser.add_argument('-ndim', '--ndimensions', action='store', default=0,
             help=('number of dimensions for reduction'))
     parser.add_argument('-oi', '--onlineinit', action='store', default=0,
@@ -188,18 +192,18 @@ def do_partition_real_time(options):
     net = options['network']
     outfname = options['output']
     ntype = int(options['ntype'])
-    nclusters = int(options['nclusters'])
+    nc1 = int(options['nclusters1'])
+    nc2 = int(options['nclusters2'])
     ts = int(options['timestep'])
 
     if ts==0:
-        partition = net.findPartitionRealTime(nclusters)
-        if partition!=None:
-            write_partition(open(outfname,"w"), partition)
-    else:
+        print "No time step provided, required for real-time case"
+        return
+    for nc in range(nc1, nc2+1):
         idx=1
-        for partitions in net.getPartitionTsList():
-            write_partition(open(outfname+".rt."+str(idx),"w"), partitions["rt"])
-            write_partition(open(outfname+".svd."+str(idx),"w"), partitions["svd"])
+        for partitions in net.getPartitionTsList(nc):
+            write_partition(open(outfname+".k"+str(nc)+".rt."+str(idx),"w"), partitions["rt"])
+            write_partition(open(outfname+".k"+str(nc)+".svd."+str(idx),"w"), partitions["svd"])
             idx += 1
 
 def do_save(options):
