@@ -110,25 +110,22 @@ class NetworkX():
 
     def __getRtCompareEmbeddings(self, ndim):
         print "Calculating embeddings for time step at", self.edgesCount, "edges"
-        svdZ,_,_,_ = self.__getEmbeddingSVD(ndim)
-        return {"rt": self.__getEmbeddingRealTime(), "svd": svdZ}
+        return {"rt": self.__getEmbeddingRealTime(), "svd": self.__getEmbeddingSVD(ndim)}
 
     def __rtClusterInit(self, ndim):
         G = self.G
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
-#        self.rtAn = An
-#        print "Cluster init: adjacency matrix", An.shape
+        self.rtAn = An
+        print "Cluster init: adjacency matrix", An.shape
 ##        print An.todense()
-##        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape)))
+#        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape)))
+#        self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
+#        self.rtV = Vt.T
         U,S,Vt = scipy.linalg.svd(An.todense(),full_matrices=False)
         self.rtU = numpy.matrix(U[:,:ndim])
         self.rtS = numpy.matrix(numpy.diag(S[: ndim]))
         self.rtV = numpy.matrix(Vt.T[:,:ndim])
-
-#        Z,self.rtU,self.rtS,self.rtV = self.__getEmbeddingSVD(ndim)
-#        return Z #if ntype==0 else numpy.dot(D2.todense(),Vk)
-        return numpy.dot(D1.todense(),numpy.matrix(self.rtU))
 
     def __rtClusterUpdate(self, nodeA, nodeB, hadNodeA, hadNodeB, ndim):
         G = self.G
@@ -285,12 +282,13 @@ class NetworkX():
         print "Rt vs Static SVD|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(D1.todense(),svdU)-numpy.dot(D1.todense(),self.rtU)))
         #numpy.savetxt("rtEmbeddingU.csv",self.rtU,delimiter=',')
         #numpy.savetxt("svdEmbeddingU.csv",svdU,delimiter=',')
-        return numpy.dot(D1.todense(),svdU), svdU, svdS, svdV 
+        return numpy.dot(D1.todense(),svdU)
+#        return numpy.dot(D1.todense(),Uk)
 
     def findPartitionSVD(self, ntype, nc, ndim=0):
         if ndim==0:
             ndim = nc
-        Z,_,_,_ = self.__getEmbeddingSVD(ndim)
+        Z = self.__getEmbeddingSVD(ndim)
         idx = self.__cluster(normalize(Z,axis=1), nc)
 
         return self.__get_partition_from_index(idx, self.orderedNodes[0]) #if ntype==0 else nodes2)
@@ -387,7 +385,7 @@ class NetworkX():
         return Up, Sp, Vp
 
     def __getEmbeddingRealTime(self):
-#        self.rtU,self.rtS,self.rtV = self.__forceOrtho(self.rtU,self.rtS,self.rtV)
+        self.rtU,self.rtS,self.rtV = self.__forceOrtho(self.rtU,self.rtS,self.rtV)
         D1 = self.__degree_matrix(self.G, self.orderedNodes[0])
         return numpy.dot(D1.todense(),self.rtU)
 

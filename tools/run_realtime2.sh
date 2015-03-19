@@ -14,7 +14,8 @@ data=`echo $ds | rev | cut -d'/' -f1 | rev`
 root=~/work/com/data/$categ
 dir=$root/svd-static
 
-log=~/work/com/log/output.log
+#log=~/work/com/log/output.log
+log=$6
 
 mutual=~/work/mutual3/mutual
 
