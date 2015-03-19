@@ -93,6 +93,7 @@ class NetworkX():
                     self.__rtClusterInit(self.ndimensions)
 #                    self.partitionList.append(self.__getRtComparePartitions(self.nclusters,self.ndimensions))
                     self.embeddingsList.append(self.__getRtCompareEmbeddings(self.ndimensions))
+#                    print "Distance between svd and rt after init:", numpy.linalg.norm(self.svdAn.todense()-self.rtAn.todense())
                     self.initDone = True
             else:
                 self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.ndimensions)
@@ -109,17 +110,25 @@ class NetworkX():
 
     def __getRtCompareEmbeddings(self, ndim):
         print "Calculating embeddings for time step at", self.edgesCount, "edges"
-        return {"rt": self.__getEmbeddingRealTime(), "svd": self.__getEmbeddingSVD(ndim)}
+        svdZ,_,_,_ = self.__getEmbeddingSVD(ndim)
+        return {"rt": self.__getEmbeddingRealTime(), "svd": svdZ}
 
     def __rtClusterInit(self, ndim):
         G = self.G
         nodes1, nodes2, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
-        print "Cluster init: adjacency matrix", An.shape
-#        print An.todense()
-        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape)))
-        self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
-        self.rtV = Vt.T
+#        self.rtAn = An
+#        print "Cluster init: adjacency matrix", An.shape
+##        print An.todense()
+##        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape)))
+        U,S,Vt = scipy.linalg.svd(An.todense(),full_matrices=False)
+        self.rtU = numpy.matrix(U[:,:ndim])
+        self.rtS = numpy.matrix(numpy.diag(S[: ndim]))
+        self.rtV = numpy.matrix(Vt.T[:,:ndim])
+
+#        Z,self.rtU,self.rtS,self.rtV = self.__getEmbeddingSVD(ndim)
+#        return Z #if ntype==0 else numpy.dot(D2.todense(),Vk)
+        return numpy.dot(D1.todense(),numpy.matrix(self.rtU))
 
     def __rtClusterUpdate(self, nodeA, nodeB, hadNodeA, hadNodeB, ndim):
         G = self.G
@@ -220,20 +229,20 @@ class NetworkX():
         return self.partition
 
     def __cluster(self, Z, k):
-        initC = self.initOrthoKmeans(Z, k)
+#        initC = self.initOrthoKmeans(Z, k)
 #        print initC
-        if len(initC) != k:
-            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
-            return {}
-        centres, idx, dist = kmeans.kmeans(Z, initC, metric='cosine' ) #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
+#        if len(initC) != k:
+#            print "Invalid number of initial centroids were generated: %d, %d expected" % (len(initC),k)
+#            return {}
+#        centres, idx, dist = kmeans.kmeans(Z, initC, metric='cosine' ) #lambda u,v: math.cos(1-1/(math.pi*spatial.distance.cosine(u,v))))
 
 #        cl = KMeans(init='k-means++', n_clusters=k, random_state=23, max_iter=1000, n_init=20, n_jobs=-1)
-#        cl = KMeans(init='k-means++', n_clusters=k, random_state=23)
+        cl = KMeans(init='k-means++', n_clusters=k, random_state=23)
 #        cl = FeatureAgglomeration(n_clusters=k)
 #        cl = DBSCAN(eps=0.7, min_samples=1000, metric=spatial.distance.cosine)
 #        cl = AffinityPropagation()
 #        cl = MeanShift()
-#        idx = cl.fit_predict(Z)
+        idx = cl.fit_predict(Z)
         return idx
 
     def __cluster_update(self, Z, k, model=None):
@@ -260,14 +269,29 @@ class NetworkX():
 #        G = self.normalizeTfIdf()
         _, _, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
-        print "Adjacency matrix", An.todense()
-        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape))) #round(math.log(len(nodes2)),0)+k)
-        return numpy.dot(D1.todense(),Uk) #if ntype==0 else numpy.dot(D2.todense(),Vk)
+        self.svdAn = An
+        print "Adjacency matrix", An.shape
+#        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape))) #round(math.log(len(nodes2)),0)+k)
+        U,S,Vt = scipy.linalg.svd(An.todense(),full_matrices=False)
+        svdU = numpy.matrix(U[:,:ndim])
+        svdS = numpy.matrix(numpy.diag(S[: ndim]))
+        svdV = numpy.matrix(Vt.T[:,:ndim])
+        for i in range(0,svdU.shape[1]):
+            if numpy.linalg.norm(self.rtU[:,i]-svdU[:,i])>numpy.linalg.norm(self.rtU[:,i]+svdU[:,i]):
+                svdU[:,i] = -svdU[:,i]
+                svdV[:,i] = -svdV[:,i]
+        print "Rt SVD correctness|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(self.rtU,numpy.dot(self.rtS,self.rtV.T)))/numpy.linalg.norm(An.todense()))
+        print "Static SVD correctness|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(svdU,numpy.dot(svdS,svdV.T)))/numpy.linalg.norm(An.todense()))
+        print "Rt vs Static SVD|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(D1.todense(),svdU)-numpy.dot(D1.todense(),self.rtU)))
+        #numpy.savetxt("rtEmbeddingU.csv",self.rtU,delimiter=',')
+        #numpy.savetxt("svdEmbeddingU.csv",svdU,delimiter=',')
+        return numpy.dot(D1.todense(),svdU), svdU, svdS, svdV 
 
     def findPartitionSVD(self, ntype, nc, ndim=0):
         if ndim==0:
             ndim = nc
-        idx = self.__cluster(normalize(self.__getEmbeddingSVD(ndim),axis=1), nc)
+        Z,_,_,_ = self.__getEmbeddingSVD(ndim)
+        idx = self.__cluster(normalize(Z,axis=1), nc)
 
         return self.__get_partition_from_index(idx, self.orderedNodes[0]) #if ntype==0 else nodes2)
 
@@ -310,7 +334,7 @@ class NetworkX():
 #        print p
         Ra = numpy.sqrt(p.T * p)
         if float(Ra) < 1e-10:
-            print "input already contained in a subspace of U; skipping update"
+#            print "input already contained in a subspace of U; skipping update"
             return U, S, V
         P = (1.0 / float(Ra)) * p
     
@@ -320,7 +344,7 @@ class NetworkX():
             q = b - V * n
             Rb = numpy.sqrt(q.T * q)
             if float(Rb) < 1e-10:
-                print "input already contained in a subspace of V; skipping update"
+#                print "input already contained in a subspace of V; skipping update"
                 return U, S, V
             Q = (1.0 / float(Rb)) * q
         else:
@@ -348,8 +372,8 @@ class NetworkX():
         return Up, Sp, Vp
 
     def __forceOrtho(self, U, S, V):
-        print "We need to force orthogonality, might take some time"
         rank = S.shape[1]
+        print "We need to force orthogonality, might take some time, rank", rank
         UQ, UR = numpy.linalg.qr( U )
         VQ, VR = numpy.linalg.qr( V );
         u, s, vt = numpy.linalg.svd( UR * S * VR.T, full_matrices = False )
@@ -363,7 +387,7 @@ class NetworkX():
         return Up, Sp, Vp
 
     def __getEmbeddingRealTime(self):
-        self.rtU,self.rtS,self.rtV = self.__forceOrtho(self.rtU,self.rtS,self.rtV)
+#        self.rtU,self.rtS,self.rtV = self.__forceOrtho(self.rtU,self.rtS,self.rtV)
         D1 = self.__degree_matrix(self.G, self.orderedNodes[0])
         return numpy.dot(D1.todense(),self.rtU)
 
@@ -387,8 +411,6 @@ class NetworkX():
             print "Clustering at timestep",idx,"(",nc,"clusters), distance:", numpy.linalg.norm(rtEmbedding-svdEmbedding)
             numpy.savetxt("rtEmbedding.csv."+str(idx),rtEmbedding,delimiter=',')
             numpy.savetxt("svdEmbedding.csv."+str(idx),svdEmbedding,delimiter=',')
-            print "SVD:", svdEmbedding
-            print "RT:", rtEmbedding
             partitionList.append( { "rt": self.__get_partition_from_index(self.__cluster(normalize(rtEmbedding,axis=1), nc), self.orderedNodes[0]),
                                     "svd": self.__get_partition_from_index(self.__cluster(normalize(svdEmbedding,axis=1), nc), self.orderedNodes[0]) } )
 
