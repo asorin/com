@@ -67,6 +67,8 @@ def parse_args(args):
             help=('number of nodes in each step for online clustering'))
     parser.add_argument('-ts', '--timestep', action='store', default=0,
             help=('specify the time step for generating clusters'))
+    parser.add_argument('-vb', '--verbouse', action='store', default=0,
+            help=('verbouse'))
 
 
     return parser.parse_args(args)

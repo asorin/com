@@ -7,6 +7,7 @@ nc2=`echo $2 | awk -F"-" '{print $2}'`
 dimensions=$3
 init=$4
 timestep=$5
+verbouse=$7
 current_time=`date +%Y%m%d%H%M%S`
 
 categ=`echo $ds | rev | cut -d'/' -f2- | rev`
@@ -29,7 +30,7 @@ edges=`expr $edgestotal - $init`
 steps=`expr 2 + $edges / $timestep`
 
 mkdir -p $dir
-bin/dcom -l ${in_file} -o ${out_file} -a partition-real-time -nc1 $nc1 -nc2 $nc2 -ndim $dimensions -nt 0 -oi $init -ts $timestep > $log 2>&1
+bin/dcom -l ${in_file} -o ${out_file} -a partition-real-time -nc1 $nc1 -nc2 $nc2 -ndim $dimensions -nt 0 -oi $init -ts $timestep -vb $verbouse> $log 2>&1
 
 for k in `seq $nc1 $nc2`; do
   # calculate mutual information with ground trutuh

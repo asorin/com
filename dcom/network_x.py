@@ -58,6 +58,7 @@ class NetworkX():
         self.initDelay = int(options['onlineinit'])
         self.rtTimeStep = int(options['timestep'])
         self.ndimensions = int(options['ndimensions'])
+        self.verbouse = int(options['verbouse'])
         if self.ndimensions==0:
             self.ndimensions = self.nclusters
         self.initDone = False
@@ -68,12 +69,14 @@ class NetworkX():
         self.orderedNodes = [ [], [] ]
         self.changedNodes = []
         self.rtU,self.rtS,self.rtV = None, None, None
+        self.A, self.B = None, None
+        self.bufferSize = 50
 
     def addLink(self, nodeA, nodeB, ts=None, weight=1):
         
         if not self.metrics is None:
             self.metrics.newEventPre(nodeA, nodeB, ts)
-        
+
         hadNodeA = nodeA in self.G
         hadNodeB = nodeB in self.G
 
@@ -85,18 +88,18 @@ class NetworkX():
 #        print "New edge", nodeA,"-",nodeB, "(",self.orderedNodes[0].index(nodeA)+1,"X",self.orderedNodes[1].index(nodeB)+1,")"
 
         # implement time-steps where k-means is applied at each step, for both batch svd and real-time
-
         if self.realTime:
             if not self.initDone:
                 if self.edgesCount>=self.initDelay:
                     print "Init cluster for network with", self.edgesCount, "edges (timestep is", self.rtTimeStep, "edges)"
+                    #self.ndimensions = min(len(self.orderedNodes[0]),len(self.orderedNodes[1]))
                     self.__rtClusterInit(self.ndimensions)
 #                    self.partitionList.append(self.__getRtComparePartitions(self.nclusters,self.ndimensions))
                     self.embeddingsList.append(self.__getRtCompareEmbeddings(self.ndimensions))
 #                    print "Distance between svd and rt after init:", numpy.linalg.norm(self.svdAn.todense()-self.rtAn.todense())
                     self.initDone = True
             else:
-                self.__rtClusterUpdate(nodeA, nodeB, hadNodeA, hadNodeB, self.ndimensions)
+                self.__rtClusterUpdateAdjBuffering(nodeA, nodeB, hadNodeA, hadNodeB, self.ndimensions)
                 if self.rtTimeStep>0 and (self.edgesCount-self.initDelay) % self.rtTimeStep == 0:
  #                   self.partitionList.append(self.__getRtComparePartitions(self.nclusters,self.ndimensions))
                     self.embeddingsList.append(self.__getRtCompareEmbeddings(self.ndimensions))
@@ -118,7 +121,8 @@ class NetworkX():
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
         self.rtAn = An
         print "Cluster init: adjacency matrix", An.shape
-##        print An.todense()
+        if self.verbouse:
+            print An.todense()
 #        self.rtU,S,Vt = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape)))
 #        self.rtS = numpy.matrix(numpy.diag(numpy.squeeze(numpy.asarray(S))))
 #        self.rtV = Vt.T
@@ -126,6 +130,81 @@ class NetworkX():
         self.rtU = numpy.matrix(U[:,:ndim])
         self.rtS = numpy.matrix(numpy.diag(S[: ndim]))
         self.rtV = numpy.matrix(Vt.T[:,:ndim])
+
+    def __rtClusterUpdateAdj(self, nodeA, nodeB, hadNodeA, hadNodeB, ndim):
+        G = self.G
+        nodesA_count = len(self.orderedNodes[0])
+        nodesB_count = len(self.orderedNodes[1])
+        indexA = self.orderedNodes[0].index(nodeA)
+        indexB = self.orderedNodes[1].index(nodeB)
+        Ani = numpy.zeros(nodesB_count)
+        Ani[indexB] = 1
+        if self.verbouse:
+            print "Dimensions:",self.rtV.shape, ndim
+        U_0 = self.rtU if hadNodeA else numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(ndim))),axis=0)
+        V_0 = self.rtV if hadNodeB else numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(ndim))),axis=0)
+        a = numpy.matrix(numpy.zeros(nodesA_count)).T
+        a[indexA] = 1
+        b = numpy.asmatrix(Ani)
+        if self.verbouse:
+            print "---------------"
+            print "Before update:"
+            print "U=",U_0
+            print "V=",V_0.T
+            print "S=",self.rtS
+            print "a=",a
+            print "b=",b
+            print "axb=",a.dot(b)
+            print " "
+        self.rtU,self.rtS,self.rtV = self.__svdUpdateLowRank(U_0,self.rtS,V_0,a,b.T)
+        if self.verbouse:
+            print "After update:"
+            print "U=",self.rtU
+            print "V=",self.rtV.T
+            print "S=",self.rtS
+            print "---------------"
+
+    def __rtClusterUpdateAdjBuffering(self, nodeA, nodeB, hadNodeA, hadNodeB, ndim):
+        indexA = self.orderedNodes[0].index(nodeA)
+        indexB = self.orderedNodes[1].index(nodeB)
+        nodesA_count = len(self.orderedNodes[0])
+        nodesB_count = len(self.orderedNodes[1])
+        Ani = numpy.zeros(nodesB_count)
+        Ani[indexB] = 1
+        if not hadNodeA:
+            self.rtU = numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(ndim))),axis=0)
+            if not self.A is None:
+                self.A = numpy.concatenate((self.A,numpy.matrix(numpy.zeros(self.A.shape[1]))),axis=0)
+        if not hadNodeB:
+            self.rtV = numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(ndim))),axis=0)
+            if not self.B is None:
+                self.B = numpy.concatenate((self.B,numpy.matrix(numpy.zeros(self.B.shape[0])).T),axis=1)
+
+        a = numpy.matrix(numpy.zeros(nodesA_count)).T
+        a[indexA] = 1
+        b = numpy.asmatrix(Ani)
+        A, B = self.A, self.B
+        self.A = a if self.A is None else numpy.bmat('A a')
+        self.B = numpy.asmatrix(Ani) if self.B is None else numpy.bmat('B ; b')
+        if self.verbouse:
+            print "A=",self.A
+            print "B=",self.B
+            print "AxB=",self.A.dot(self.B)
+        if self.bufferSize>0 and (self.edgesCount-self.initDelay) % self.bufferSize == 0:
+            if self.verbouse:
+                print "---------------"
+                print "Before update:"
+                print "Dimensions:",self.rtV.shape, ndim
+                print "U=",self.rtU
+                print "V=",self.rtV
+            self.rtU,self.rtS,self.rtV = self.__svdUpdateLowRank(self.rtU,self.rtS,self.rtV,self.A,self.B.T)
+            self.A, self.B = None, None
+            if self.verbouse:
+                print "After update:"
+                print "U=",self.rtU
+                print "V=",self.rtV.T
+                print "S=",self.rtS
+                print "---------------"
 
     def __rtClusterUpdate(self, nodeA, nodeB, hadNodeA, hadNodeB, ndim):
         G = self.G
@@ -137,21 +216,34 @@ class NetworkX():
         indexB = self.orderedNodes[1].index(nodeB)
 #        print "Cluster update", indexA+1,"-",indexB+1,"sizes",nodesA_count,"X",nodesB_count,", degrees",degreeA,"X",G.degree(nodeB)
 #        print self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0],column_order=self.orderedNodes[1]),D1,D2).todense()
+        # TODO add k-means to incremental version and test
+        U_0 = self.rtU if hadNodeA else numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(ndim))),axis=0)
+        V_0 = self.rtV if hadNodeB else numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(ndim))),axis=0)
+        if self.verbouse:
+            print "---------------"
+            print "Before update:"
+            print "U=",U_0
+            print "V=",V_0.T
+            print "S=",self.rtS
         Ani = numpy.zeros(nodesB_count)
         for objNode in nx.all_neighbors(G,nodeA):
             i = self.orderedNodes[1].index(objNode)
             degreeObjNode = G.degree(objNode)
             prevDegreeObj = 0 if i==indexB else degreeObjNode
             Ani[i] = math.sqrt(degreeA*degreeObjNode)-math.sqrt((degreeA-1)*prevDegreeObj)
-        # TODO add k-means to incremental version and test
-        U_0 = self.rtU if hadNodeA else numpy.concatenate((self.rtU,numpy.matrix(numpy.zeros(ndim))),axis=0)
-        V_0 = self.rtV if hadNodeB else numpy.concatenate((self.rtV,numpy.matrix(numpy.zeros(ndim))),axis=0)
-        a = numpy.matrix(numpy.zeros(nodesA_count)).T
-        a[indexA] = 1
-        b = numpy.asmatrix(Ani)
-#        print "New modification",indexA+1,":",a*b
-        self.rtU,self.rtS,self.rtV = self.__svdUpdate(U_0,self.rtS,V_0,a,b)
-	
+        a1 = numpy.matrix(numpy.zeros(nodesA_count)).T
+        a1[indexA] = 1
+        b1 = numpy.asmatrix(Ani)
+        #self.rtU,self.rtS,self.rtV = self.__svdUpdateRank1(U_0,self.rtS,V_0,a1,b1)
+        if self.verbouse:
+            print "After update 1:"
+            print "U=",self.rtU
+            print "V=",self.rtV.T
+            print "S=",self.rtS
+            print "a1=",a1
+            print "b1=",b1
+            print "a1xb1=",a1.dot(b1)
+        
         Anj = numpy.zeros(nodesA_count)
         for usrNode in nx.all_neighbors(G,nodeB):
             if usrNode==nodeA:
@@ -159,11 +251,140 @@ class NetworkX():
             j = self.orderedNodes[0].index(usrNode)
             degreeUsrNode = G.degree(usrNode)
             Anj[j] = math.sqrt(degreeUsrNode*degreeB) - math.sqrt(degreeUsrNode*(degreeB-1))
-        a = numpy.asmatrix(Anj).T
-        b = numpy.matrix(numpy.zeros(nodesB_count)).T
-        b[indexB] = 1
-#        print "New modification",indexB+1,":",a*b.T
-        self.rtU,self.rtS,self.rtV = self.__svdUpdate(self.rtU,self.rtS,self.rtV,a,b)
+        a2 = numpy.asmatrix(Anj).T
+        b2 = numpy.matrix(numpy.zeros(nodesB_count)).T
+        b2[indexB] = 1
+        b2 = b2.T
+        #self.rtU,self.rtS,self.rtV = self.__svdUpdateRank1(self.rtU,self.rtS,self.rtV,a2,b2)
+        A = numpy.bmat('a1 a2')
+        B = numpy.bmat('b1 ; b2')
+        if self.verbouse:
+            print "a2=",a2
+            print "b2=",b2
+            print "a2xb2=",a2.dot(b2)
+            print "Total axb=",a1.dot(b1)+a2.dot(b2)
+            print "A=",A
+            print "B=",B
+            print "Total AxB=",A.dot(B)
+            print "---------------"
+
+        self.rtU,self.rtS,self.rtV = self.__svdUpdateLowRank(self.rtU,self.rtS,self.rtV,A.T,B)
+        if self.verbouse:
+            print "After update 2:"
+            print "U=",self.rtU
+            print "V=",self.rtV.T
+            print "S=",self.rtS
+            print "---------------"
+
+    def __svdUpdateRank1(self, U, S, V, a, b):
+        # convert input to matrices (no copies of data made if already numpy.ndarray or numpy.matrix)
+        S = numpy.asmatrix(S)
+        U = numpy.asmatrix(U)
+        if V is not None:
+            V = numpy.asmatrix(V)
+        a = numpy.asmatrix(a).reshape(a.size, 1)
+        b = numpy.asmatrix(b).reshape(b.size, 1)
+   
+        rank = S.shape[1]
+    
+        # eq (6)
+        m = U.T.dot(a)
+        p = a - U.dot( m)
+        Ra = numpy.sqrt(p.T.dot( p))
+        if self.verbouse:
+            #print "m=",m
+            #print "p=",p
+            print "Ra=",float(Ra)
+        if float(Ra) ==0:#< 1e-10:
+            print "input already contained in a subspace of U; skipping update"
+            return U, S, V
+        P = (1.0 / float(Ra)) * p
+        #print "P=",P
+    
+        if V is not None:
+            # eq (7)
+            n = V.T.dot(b)
+            q = b - V.dot(n)
+            Rb = numpy.sqrt(q.T.dot(q))
+            print "Rb=",Rb
+            if float(Rb) ==0:#< 1e-10:
+                print "input already contained in a subspace of V; skipping update"
+                return U, S, V
+            Q = (1.0 / float(Rb)) * q
+        else:
+            n = numpy.matrix(numpy.zeros((rank, 1)))
+            Rb = numpy.matrix([[1.0]])    
+    
+        if float(Ra) > 1.0 or float(Rb) > 1.0:
+            print "insufficient target rank (Ra=%.3f, Rb=%.3f); this update will result in major loss of information" % (float(Ra), float(Rb))
+    
+        # eq (8)
+        #print "S0=",numpy.matrix(numpy.diag(list(numpy.diag(S)) + [0.0]))
+        K = numpy.matrix(numpy.diag(list(numpy.diag(S)) + [0.0])) + numpy.bmat('m ; Ra').dot( numpy.bmat('n ; Rb').T)
+        #print "K=",K
+    
+        # eq (5)
+        u, s, vt = numpy.linalg.svd(K, full_matrices = False)
+        tUp = numpy.matrix(u[:, :rank])
+        tVp = numpy.matrix(vt.T[:, :rank])
+        tSp = numpy.matrix(numpy.diag(s[: rank]))
+        Up = numpy.bmat('U P').dot(tUp)
+        if V is not None:
+            Vp = numpy.bmat('V Q').dot( tVp)
+        else:
+            Vp = None
+        Sp = tSp
+    
+        return Up, Sp, Vp
+
+    def __svdUpdateLowRank(self, U, S, V, A, B):
+        rank = S.shape[1]
+        # P is an orthogonal basis of the column-space of (I-VV')A
+        m = U.T.dot(A)
+        p = A - U.dot(m)
+        P = scipy.linalg.orth( p )
+        # p may not have full rank.  If not, P will be too small. Pad with zeros
+        P = numpy.lib.pad(P,((0,0),(0,p.shape[1]-P.shape[1])),'constant',constant_values=(0,0))#[ P zeros(P.shape[0], p.shape[1]-P.shape[1]) ]
+        Ra = P.T.dot(p)
+        # Q is an orthogonal basis of the column-space of (I-VV')B
+        n = V.T.dot( B)
+        q = B - V.dot(n)
+        Q = scipy.linalg.orth(q)
+        # q may not have full rank.  If not, Q will be too small. Pad with zeros
+        Q = numpy.lib.pad(Q,((0,0),(0,q.shape[1]-Q.shape[1])),'constant',constant_values=(0,0))
+        Rb = Q.T.dot( q)
+        # Diagonalize K, maintaining rank
+        z = numpy.zeros( m.shape )
+        zt = z.T
+        z2 = numpy.zeros( (m.shape[1], m.shape[1]) )
+        # K = [ S z ; z' z2 ] + [ m; Ra ] * [ n; Rb ]';
+        K = numpy.bmat('S z ; zt z2') + numpy.bmat('m ; Ra').dot( numpy.bmat('n ; Rb').T)
+        u, s, vt = numpy.linalg.svd(K, full_matrices = False)
+        tUp = numpy.matrix(u[:, :rank])
+        tVp = numpy.matrix(vt.T[:, :rank])
+        tSp = numpy.matrix(numpy.diag(s[: rank]))
+        # Now update our matrices
+        Up = numpy.bmat('U P').dot(tUp)
+        Vp = numpy.bmat('V Q').dot( tVp)
+        Sp = tSp
+
+        return Up, Sp, Vp
+
+
+    def __forceOrtho(self, U, S, V):
+        rank = S.shape[1]
+        print "We need to force orthogonality, might take some time, rank", rank
+        UQ, UR = numpy.linalg.qr( U )
+        VQ, VR = numpy.linalg.qr( V );
+        u, s, vt = numpy.linalg.svd( UR * S * VR.T, full_matrices = False )
+        tUp = numpy.matrix(u[:, :rank])
+        tVp = numpy.matrix(vt.T[:, :rank])
+        tSp = numpy.matrix(numpy.diag(s[: rank]))
+        Up = UQ * tUp
+        Vp = VQ * tVp
+        Sp = tSp
+        print "Orthogonality done"
+        return Up, Sp, Vp
 
     def flush(self):
         pass
@@ -266,6 +487,8 @@ class NetworkX():
 #        G = self.normalizeTfIdf()
         _, _, D1, D2 = self.__get_nodes_and_degrees(G, self.orderedNodes[0], self.orderedNodes[1])
         An = self.__normalize(bipartite.biadjacency_matrix(G, row_order=self.orderedNodes[0], column_order=self.orderedNodes[1]), D1, D2)
+        if self.verbouse:
+            print "An=",An.todense()
         self.svdAn = An
         print "Adjacency matrix", An.shape
 #        Uk,Sk,Vk = scipy.sparse.linalg.svds(An, ndim, v0=numpy.ones(min(An.shape))) #round(math.log(len(nodes2)),0)+k)
@@ -277,13 +500,24 @@ class NetworkX():
             if numpy.linalg.norm(self.rtU[:,i]-svdU[:,i])>numpy.linalg.norm(self.rtU[:,i]+svdU[:,i]):
                 svdU[:,i] = -svdU[:,i]
                 svdV[:,i] = -svdV[:,i]
-        print "Rt SVD correctness|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(self.rtU,numpy.dot(self.rtS,self.rtV.T)))/numpy.linalg.norm(An.todense()))
-        print "Static SVD correctness|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(svdU,numpy.dot(svdS,svdV.T)))/numpy.linalg.norm(An.todense()))
-        print "Rt vs Static SVD|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(D1.todense(),svdU)-numpy.dot(D1.todense(),self.rtU)))
+        if self.verbouse:
+            print "---------------"
+            print "Batch SVD:"
+            print "U=",svdU
+            print "V=",svdV.T
+            print "S=",svdS
+            print "---------------"
+#        print "Rt SVD correctness|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(self.rtU,numpy.dot(self.rtS,self.rtV.T)))/numpy.linalg.norm(An.todense()))
+#        print "Static SVD correctness|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(numpy.dot(svdU,numpy.dot(svdS,svdV.T)))/numpy.linalg.norm(An.todense()))
+        staticZ = svdU#numpy.dot(D1.todense(),svdU)
+        rtZ = self.rtU#numpy.dot(D1.todense(),self.rtU)
+#        dist = numpy.diag(scipy.spatial.distance.cdist(staticZ,rtZ,'euclidean'))
+#        norm = (numpy.linalg.norm(staticZ,axis=1) + numpy.linalg.norm(rtZ,axis=1))/2
+#        print "Rt vs Static SVD|%d|%.5f" % (self.edgesCount, numpy.average(dist/norm))
+        print "Rt vs Static SVD|%d|%.5f" % (self.edgesCount, numpy.linalg.norm(staticZ-rtZ)/(numpy.linalg.norm(staticZ)+numpy.linalg.norm(rtZ)))
         #numpy.savetxt("rtEmbeddingU.csv",self.rtU,delimiter=',')
         #numpy.savetxt("svdEmbeddingU.csv",svdU,delimiter=',')
         return numpy.dot(D1.todense(),svdU)
-#        return numpy.dot(D1.todense(),Uk)
 
     def findPartitionSVD(self, ntype, nc, ndim=0):
         if ndim==0:
@@ -315,77 +549,17 @@ class NetworkX():
         print type(idx),idx.shape
         return self.__get_partition_from_index(idx, nodes1 if ntype==0 else nodes2)
 
-    def __svdUpdate(self, U, S, V, a, b):
-        # convert input to matrices (no copies of data made if already numpy.ndarray or numpy.matrix)
-        S = numpy.asmatrix(S)
-        U = numpy.asmatrix(U)
-        if V is not None:
-            V = numpy.asmatrix(V)
-        a = numpy.asmatrix(a).reshape(a.size, 1)
-        b = numpy.asmatrix(b).reshape(b.size, 1)
-   
-        rank = S.shape[1]
-    
-        # eq (6)
-        m = U.T * a
-        p = a - U * m
-#        print p
-        Ra = numpy.sqrt(p.T * p)
-        if float(Ra) < 1e-10:
-#            print "input already contained in a subspace of U; skipping update"
-            return U, S, V
-        P = (1.0 / float(Ra)) * p
-    
-        if V is not None:
-            # eq (7)
-            n = V.T * b
-            q = b - V * n
-            Rb = numpy.sqrt(q.T * q)
-            if float(Rb) < 1e-10:
-#                print "input already contained in a subspace of V; skipping update"
-                return U, S, V
-            Q = (1.0 / float(Rb)) * q
-        else:
-            n = numpy.matrix(numpy.zeros((rank, 1)))
-            Rb = numpy.matrix([[1.0]])    
-    
-#        if float(Ra) > 1.0 or float(Rb) > 1.0:
-#            print "insufficient target rank (Ra=%.3f, Rb=%.3f); this update will result in major loss of information" % (float(Ra), float(Rb))
-    
-        # eq (8)
-        K = numpy.matrix(numpy.diag(list(numpy.diag(S)) + [0.0])) + numpy.bmat('m ; Ra') * numpy.bmat('n ; Rb').T
-    
-        # eq (5)
-        u, s, vt = numpy.linalg.svd(K, full_matrices = False)
-        tUp = numpy.matrix(u[:, :rank])
-        tVp = numpy.matrix(vt.T[:, :rank])
-        tSp = numpy.matrix(numpy.diag(s[: rank]))
-        Up = numpy.bmat('U P') * tUp
-        if V is not None:
-            Vp = numpy.bmat('V Q') * tVp
-        else:
-            Vp = None
-        Sp = tSp
-    
-        return Up, Sp, Vp
-
-    def __forceOrtho(self, U, S, V):
-        rank = S.shape[1]
-        print "We need to force orthogonality, might take some time, rank", rank
-        UQ, UR = numpy.linalg.qr( U )
-        VQ, VR = numpy.linalg.qr( V );
-        u, s, vt = numpy.linalg.svd( UR * S * VR.T, full_matrices = False )
-        tUp = numpy.matrix(u[:, :rank])
-        tVp = numpy.matrix(vt.T[:, :rank])
-        tSp = numpy.matrix(numpy.diag(s[: rank]))
-        Up = UQ * tUp
-        Vp = VQ * tVp
-        Sp = tSp
-        print "Orthogonality done"
-        return Up, Sp, Vp
-
     def __getEmbeddingRealTime(self):
-        self.rtU,self.rtS,self.rtV = self.__forceOrtho(self.rtU,self.rtS,self.rtV)
+        #self.rtU,self.rtS,self.rtV = self.__forceOrtho(self.rtU,self.rtS,self.rtV)
+        if not self.A is None:
+            self.rtU,self.rtS,self.rtV = self.__svdUpdateLowRank(self.rtU,self.rtS,self.rtV,self.A,self.B.T)
+            self.A, self.B = None, None
+            if self.verbouse:
+                print "After update:"
+                print "U=",self.rtU
+                print "V=",self.rtV.T
+                print "S=",self.rtS
+                print "---------------"
         D1 = self.__degree_matrix(self.G, self.orderedNodes[0])
         return numpy.dot(D1.todense(),self.rtU)
 
